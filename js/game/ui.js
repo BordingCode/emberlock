@@ -242,7 +242,7 @@ export function renderHelp(cb) {
     <div class="help-body">
       <p><b>The only rule:</b> shove the other wizards into the lava. Damage is a tickle — <em>position kills</em>.</p>
       <p><b>LEFT thumb</b> — touch & drag anywhere on the left side to move.</p>
-      <p><b>RIGHT thumb</b> — drag to aim (you'll see the line), <b>release to hurl a fireball</b>. It knocks foes back. Slide back to your start point to cancel.</p>
+      <p><b>RIGHT thumb</b> — drag to aim (you'll see the line), <b>release to hurl a fireball</b>. A quick <b>tap</b> also fires, toward the spot you tapped. Slide back to your start point to cancel a drag.</p>
       <p><b>Spell buttons</b> — bought spells appear bottom-right. Surge dashes where you're moving — it also breaks a stagger. Use it when you're flying toward the fire.</p>
       <p><b>The island shrinks.</b> Stay off the glowing rim — red glow under your feet means the lava wants you.</p>
       <p><b>The Gauntlet:</b> five matches, each first-to-3 rounds. Win rounds & kills to earn ◆ gold for the Forge. <b>Lose one match and the run ends.</b> Banked ◈ cinders unlock new spells, embers and robes in the Sanctum.</p>

@@ -93,6 +93,7 @@ export class Renderer {
       ctx.fillRect(0, 0, W, H);
     }
 
+    if (hud && hud.hints) this.drawHints(ctx, W, H, t);
     if (hud) this.drawHud(ctx, world, hud, t);
   }
 
@@ -448,6 +449,45 @@ export class Renderer {
       ctx.strokeText('FIGHT', C.AX, C.AY - 40);
       ctx.fillText('FIGHT', C.AX, C.AY - 40);
     }
+    ctx.restore();
+  }
+
+  // ---- first-match control hints: stay up until a few fireballs are thrown ------------
+  drawHints(ctx, W, H, t) {
+    const pulse = 0.55 + 0.3 * Math.sin(t * 3);
+    const text = (lines, x, y, color) => {
+      ctx.font = '700 13px Cinzel, serif';
+      ctx.textAlign = 'center';
+      lines.forEach((ln, i) => {
+        const yy = y + i * 18;
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,12,0.85)';
+        ctx.strokeText(ln, x, yy);
+        ctx.fillStyle = color;
+        ctx.fillText(ln, x, yy);
+      });
+    };
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    // LEFT: move stick
+    const lx = W * 0.25, ly = H * 0.74;
+    ctx.strokeStyle = '#9fd8ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(lx, ly, 26, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#9fd8ff';
+    ctx.beginPath(); ctx.arc(lx + Math.cos(t * 2.2) * 10, ly + Math.sin(t * 2.2) * 10, 8, 0, TAU); ctx.fill();
+    text(['DRAG', 'TO MOVE'], lx, ly + 52, '#9fd8ff');
+    // RIGHT: aim + release
+    const rx = W * 0.75, ry = H * 0.74;
+    const k = (t % 1.6) / 1.6; // looping demo drag
+    ctx.strokeStyle = '#ffd24a';
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath();
+    ctx.moveTo(rx - 10, ry + 14);
+    ctx.lineTo(rx - 10 + 34 * Math.min(k * 1.6, 1), ry + 14 - 44 * Math.min(k * 1.6, 1));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath(); ctx.arc(rx - 10 + 34 * Math.min(k * 1.6, 1), ry + 14 - 44 * Math.min(k * 1.6, 1), k > 0.8 ? 9 : 5, 0, TAU); ctx.fill();
+    text(['DRAG & LET GO', 'TO THROW FIRE', '(OR JUST TAP)'], rx, ry + 52, '#ffd24a');
     ctx.restore();
   }
 

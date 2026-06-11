@@ -189,6 +189,12 @@ function startMatch() {
   }
 }
 
+// track the first few fireballs thrown — the on-screen control hints stay up until then
+function countFire() {
+  Meta.fireCount = (Meta.fireCount || 0) + 1;
+  if (Meta.fireCount <= 8) saveMeta();
+}
+
 function castActive(id) {
   if (!world) return;
   resumeAudio();
@@ -310,7 +316,13 @@ const loop = new GameLoop({
     if (!world) return;
     if (FX.freeze > 0) { FX.freeze -= dt; return; } // hit-pause: sim holds, fx breathe
     const fire = input.takeFire();
-    if (fire && world.player.alive && world.state === 'fight') world.requestFire(fire);
+    if (fire && world.player.alive && world.state === 'fight') { world.requestFire(fire); countFire(); }
+    const tap = input.takeTap();
+    if (tap && world.player.alive && world.state === 'fight') {
+      const p = world.player;
+      const len = Math.hypot(tap.x - p.x, tap.y - p.y);
+      if (len > 8) { world.requestFire({ nx: (tap.x - p.x) / len, ny: (tap.y - p.y) / len }); countFire(); }
+    }
     world.update(dt, { joy: input.joystick() });
     setPulse(world.state === 'fight' && world.arenaR < 130 && Meta.music);
     if (world.state === 'fight') setMusicIntensity(1 - (world.arenaR - C.R_FLOOR) / (C.R_START - C.R_FLOOR));
@@ -326,6 +338,8 @@ const loop = new GameLoop({
         label: `MATCH ${run.matchIdx + 1} — ${world.cfg.lineup.map((r) => RIVALS[r].name.toUpperCase()).join(' & ')}`,
         gold: run.gold,
         emberIcons: run.embers.map((id) => EMBERS[id].icon).join(' '),
+        // big control hints until the player has thrown a few fireballs
+        hints: (Meta.fireCount || 0) < 6 && (world.state === 'count' || world.state === 'fight'),
       };
       updateSpellButtons(world);
     }

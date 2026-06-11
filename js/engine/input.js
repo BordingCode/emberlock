@@ -6,8 +6,9 @@ export class TwinStick {
   constructor(canvas, view) {
     this.view = view;
     this.move = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
-    this.aim = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+    this.aim = { id: null, ox: 0, oy: 0, x: 0, y: 0, t0: 0 };
     this.fired = null;          // {nx,ny} set on aim release, consumed by the sim
+    this.tapped = null;         // {x,y} world point: quick tap on the aim side = fire at it
     this.anyTap = false;        // any pointerdown this frame (menu/unlock audio)
 
     const onDown = (e) => {
@@ -21,6 +22,7 @@ export class TwinStick {
       } else if (this.aim.id === null) {
         this.aim.id = e.pointerId;
         this.aim.ox = p.x; this.aim.oy = p.y; this.aim.x = p.x; this.aim.y = p.y;
+        this.aim.t0 = performance.now();
       } else if (this.move.id === null) {
         // both thumbs already busy never happens; but allow late move stick on right-handed lefties
         this.move.id = e.pointerId;
@@ -39,6 +41,8 @@ export class TwinStick {
         const dx = this.aim.x - this.aim.ox, dy = this.aim.y - this.aim.oy;
         const len = Math.hypot(dx, dy);
         if (len >= 16) this.fired = { nx: dx / len, ny: dy / len };
+        // a quick tap (no real drag) fires AT the tapped spot — beginner-friendly
+        else if (performance.now() - this.aim.t0 < 300) this.tapped = { x: this.aim.x, y: this.aim.y };
         this.aim.id = null;
       }
     };
@@ -72,5 +76,6 @@ export class TwinStick {
   }
 
   takeFire() { const f = this.fired; this.fired = null; return f; }
+  takeTap() { const t = this.tapped; this.tapped = null; return t; }
   consumeTap() { const t = this.anyTap; this.anyTap = false; return t; }
 }
