@@ -172,6 +172,50 @@ export const EMBERS = {
   },
 };
 
+// ---- Trials: a ladder of crafted challenge fights ----------------------------
+// Each trial = one match with fixed rules. Beat one to unlock the next.
+// Reward (cinders) pays once. All of it is data over existing systems:
+// lineup/aiTier (rivals), embers (modifiers), arena overrides, fixed loadouts.
+export const TRIALS = [
+  { id: 't1', num: 'I', name: 'First Spark', reward: 2,
+    desc: 'Pyra. One round, winner takes all. Your shove is already strengthened — land it.',
+    lineup: ['pyra'], target: 1, aiTier: 0, ranks: { force: 1 } },
+  { id: 't2', num: 'II', name: 'Small Ground', reward: 2,
+    desc: 'Old Cinder on a half-sized island. Nowhere to hide from his anchors.',
+    lineup: ['cinder'], target: 2, aiTier: 1, arena: { rStart: 150 } },
+  { id: 't3', num: 'III', name: 'Bare Hands', reward: 3,
+    desc: 'Gale, and you carry nothing but the basic fireball. Pure aim.',
+    lineup: ['gale'], target: 2, aiTier: 1 },
+  { id: 't4', num: 'IV', name: 'Glass Dance', reward: 3,
+    desc: 'Wisp under Glass and Volatile. Every shove is nearly lethal — both ways.',
+    lineup: ['wisp'], target: 2, aiTier: 1, embers: ['glass', 'volatile'] },
+  { id: 't5', num: 'V', name: 'Two Suns', reward: 4,
+    desc: 'Pyra and Gale together. You get Surge — use it to keep them apart.',
+    lineup: ['pyra', 'gale'], target: 2, aiTier: 1, actives: ['surge'] },
+  { id: 't6', num: 'VI', name: 'Minefield', reward: 4,
+    desc: 'Magnus, on ground seeded with six masterless anchors.',
+    lineup: ['magnus'], target: 2, aiTier: 2, mines: 6 },
+  { id: 't7', num: 'VII', name: 'Rising Fast', reward: 4,
+    desc: 'The island sinks from the first second, twice as fast. Cinder and Wisp wait.',
+    lineup: ['cinder', 'wisp'], target: 2, aiTier: 2, arena: { hold: 0, rateMul: 2 } },
+  { id: 't8', num: 'VIII', name: 'The Long Night', reward: 5,
+    desc: 'Magnus and Pyra across a river of fire. First to four rounds.',
+    lineup: ['magnus', 'pyra'], target: 4, aiTier: 2, embers: ['rivers'], actives: ['surge'] },
+  { id: 't9', num: 'IX', name: 'Featherweight', reward: 5,
+    desc: 'Your shove is a third weaker. Theirs is not. Position twice as well.',
+    lineup: ['gale', 'wisp'], target: 2, aiTier: 2, impulseMul: 0.7 },
+  { id: 't10', num: 'X', name: 'Three Flames', reward: 6,
+    desc: 'Pyra, Gale and Wisp at once. Let them tangle — then push.',
+    lineup: ['pyra', 'gale', 'wisp'], target: 2, aiTier: 2, actives: ['surge'], utility: 'ward' },
+  { id: 't11', num: 'XI', name: "Ash's Shadow", reward: 6,
+    desc: 'The Last Flame alone, at his sharpest. Prove the gauntlet was no luck.',
+    lineup: ['ash'], target: 2, aiTier: 4, ranks: { force: 1 }, actives: ['surge'] },
+  { id: 't12', num: 'XII', name: 'The Emberlocked', reward: 10, robe: '#f5f2ff',
+    desc: 'Ash and Magnus, on Glass, on a Rising Tide. First to three. The white robe of the Emberlocked awaits.',
+    lineup: ['ash', 'magnus'], target: 3, aiTier: 4, embers: ['glass', 'tide'], ranks: { force: 1 }, actives: ['surge'], utility: 'ward' },
+];
+export const TROPHY_ROBE = '#f5f2ff';
+
 // ---- Meta (Cinders) shop — variety, not power -------------------------------
 export const META_SHOP = [
   { id: 'unlock_hook', name: 'Unlock: Hook', icon: '⌁', cost: 10, type: 'spell', target: 'hook', desc: 'The yank. Adds Hook to shops and drafts.' },

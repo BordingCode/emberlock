@@ -10,6 +10,7 @@ const DEFAULTS = {
   robes: [],               // owned robe colours
   robe: PLAYER_COLOR,
   tier: 0,                 // highest unlocked Ascension tier
+  trialsDone: [],          // trial ids beaten (rewards pay once)
   bestMatch: 0,            // furthest match reached (1-based, 6 = cleared)
   runs: 0, clears: 0, shoves: 0,
   sfx: true, music: true, reducedMotion: false,

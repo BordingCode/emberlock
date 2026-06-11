@@ -83,7 +83,8 @@ canvas#game {
   display: none;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* no justify-content:center — with overflow it makes the top unreachable.
+     Auto margins on first/last child centre short content, scroll tall content. */
   gap: 14px;
   padding: 28px 18px calc(28px + env(safe-area-inset-bottom));
   text-align: center;
@@ -94,6 +95,8 @@ canvas#game {
   pointer-events: auto;
 }
 .screen.active { display: flex; }
+.screen > :first-child { margin-top: auto; }
+.screen > :last-child { margin-bottom: auto; }
 
 h1.title {
   font-family: 'Cinzel', serif;
@@ -194,6 +197,52 @@ h1.title span { color: var(--hot); }
 .card-sub { font-size: 10.5px; color: var(--hot); letter-spacing: 0.05em; text-transform: uppercase; }
 .card-desc { font-size: 12.5px; color: var(--dim); line-height: 1.35; }
 .card-cost { font-family: 'Cinzel', serif; font-size: 13px; color: var(--gold); margin-top: 2px; }
+
+/* ---------- trials ladder ---------- */
+.trial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  max-width: 460px;
+}
+.trial-row {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 13px;
+  padding: 11px 14px;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.trial-row:active { transform: scale(0.98); }
+.trial-row.locked { opacity: 0.42; pointer-events: none; }
+.trial-row.next {
+  border-color: rgba(255, 200, 80, 0.65);
+  box-shadow: 0 0 18px rgba(255, 150, 40, 0.25);
+}
+.trial-row.done { opacity: 0.75; border-color: rgba(120, 220, 140, 0.35); }
+.trial-num {
+  font-family: 'Cinzel', serif;
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--gold);
+  min-width: 34px;
+  text-align: center;
+}
+.trial-row.done .trial-num { color: #8fe3a0; }
+.trial-main { flex: 1; min-width: 0; }
+.trial-name { font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; color: var(--gold); letter-spacing: 0.04em; }
+.trial-desc { font-size: 12.5px; color: var(--dim); line-height: 1.3; margin-top: 2px; }
+.trial-foes { font-size: 11.5px; color: rgba(239, 230, 218, 0.45); margin-top: 3px; }
+.trial-reward { font-family: 'Cinzel', serif; font-size: 12.5px; color: var(--gold); white-space: nowrap; }
+.trial-row.done .trial-reward { color: #8fe3a0; }
 
 .end-stats { display: flex; gap: 22px; color: var(--dim); font-size: 16px; flex-wrap: wrap; justify-content: center; }
 .end-stats b { color: var(--gold); font-size: 20px; display: block; font-family: 'Cinzel', serif; }

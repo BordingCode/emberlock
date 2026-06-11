@@ -152,7 +152,7 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(C.AX, C.AY, R - 1, 0, TAU); ctx.stroke();
     ctx.globalCompositeOperation = 'source-over';
     // shrink warning: crumble sparks at the rim while it eats inward
-    if (world.roundTime > C.SHRINK_HOLD - 1.2 && R > C.R_FLOOR + 1 && Math.random() < 0.5) {
+    if (world.roundTime > world.arena.hold - 1.2 && R > C.R_FLOOR + 1 && Math.random() < 0.5) {
       const a = Math.random() * TAU;
       ctx.fillStyle = 'rgba(255,170,60,0.8)';
       ctx.beginPath(); ctx.arc(C.AX + Math.cos(a) * (R - 3), C.AY + Math.sin(a) * (R - 3), 1.6, 0, TAU); ctx.fill();
@@ -514,11 +514,13 @@ export class Renderer {
     ctx.font = '600 11px Cinzel, serif';
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.fillText(hud.label, cx, y + 22);
-    // gold, top-right
-    ctx.textAlign = 'right';
-    ctx.font = '800 16px Cinzel, serif';
-    ctx.fillStyle = '#ffd24a';
-    ctx.fillText(`${hud.gold} ◆`, W - 14, 30);
+    // gold, top-right (hidden in trials — no economy there)
+    if (hud.gold != null) {
+      ctx.textAlign = 'right';
+      ctx.font = '800 16px Cinzel, serif';
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillText(`${hud.gold} ◆`, W - 14, 30);
+    }
     // embers, top-left
     ctx.textAlign = 'left';
     ctx.font = '700 15px serif';

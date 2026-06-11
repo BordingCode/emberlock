@@ -1,5 +1,5 @@
 // DOM screens & HUD buttons. The canvas is the game; DOM is menus, cards, buttons.
-import { SPELLS, UPGRADES, EMBERS, RIVALS, META_SHOP } from './data.js';
+import { SPELLS, UPGRADES, EMBERS, RIVALS, META_SHOP, TRIALS, TROPHY_ROBE } from './data.js';
 import { Meta, saveMeta } from './meta.js';
 import { sfx } from '../audio.js';
 
@@ -57,11 +57,13 @@ export function renderMenu(cb) {
   s.append(begin);
 
   const row = el('div', 'menu-row');
+  const trials = el('button', 'btn', `TRIALS <small>${Meta.trialsDone.length}/${TRIALS.length}</small>`);
+  trials.onclick = () => cb.trials();
   const sanctum = el('button', 'btn', `SANCTUM <small>${Meta.cinders} ◈</small>`);
   sanctum.onclick = () => cb.sanctum();
   const help = el('button', 'btn', 'HOW TO PLAY');
   help.onclick = () => cb.help();
-  row.append(sanctum, help);
+  row.append(trials, sanctum, help);
   s.append(row);
 
   const opts = el('div', 'menu-opts');
@@ -188,6 +190,57 @@ export function renderRunEnd(win, stats, cb) {
   showScreen('scr-runend');
 }
 
+// ---- trials: the challenge ladder ------------------------------------------------------------
+export function renderTrials(cb) {
+  const s = $('#scr-trials');
+  s.innerHTML = '';
+  s.append(el('h2', 'h', 'THE TRIALS'));
+  s.append(el('p', 'sub', `Twelve crafted fights, each unlocking the next. <b>${Meta.trialsDone.length}/${TRIALS.length}</b> conquered.`));
+  const backTop = el('button', 'btn btn-small', 'BACK');
+  backTop.onclick = () => cb.back();
+  s.append(backTop);
+  const list = el('div', 'trial-list');
+  TRIALS.forEach((t, i) => {
+    const done = Meta.trialsDone.includes(t.id);
+    const unlocked = i === 0 || Meta.trialsDone.includes(TRIALS[i - 1].id);
+    const row = el('button', 'trial-row' + (done ? ' done' : unlocked ? ' next' : ' locked'));
+    const foes = t.lineup.map((r) => `<b style="color:${RIVALS[r].color}">${RIVALS[r].name}</b>`).join(' · ');
+    row.innerHTML = `
+      <div class="trial-num">${done ? '✦' : unlocked ? t.num : '🔒'}</div>
+      <div class="trial-main">
+        <div class="trial-name">TRIAL ${t.num} — ${t.name.toUpperCase()}</div>
+        ${unlocked ? `<div class="trial-desc">${t.desc}</div><div class="trial-foes">${foes} · first to ${t.target}</div>` : '<div class="trial-desc">Conquer the previous trial to reveal this one.</div>'}
+      </div>
+      <div class="trial-reward">${done ? 'WON' : `+${t.reward} ◈`}</div>`;
+    if (unlocked) row.onclick = () => { sfx.pick(); cb.start(t); };
+    list.append(row);
+  });
+  s.append(list);
+  showScreen('scr-trials');
+}
+
+export function renderTrialEnd(win, trial, firstClear, cb) {
+  const s = $('#scr-runend');
+  s.innerHTML = '';
+  s.append(el('h2', 'h ' + (win ? 'win' : 'lose'), win ? 'TRIAL CONQUERED' : 'THE TRIAL STANDS'));
+  s.append(el('p', 'sub', win
+    ? (firstClear
+      ? `Trial ${trial.num} — ${trial.name} — falls. <b>+${trial.reward} ◈</b> banked${trial.robe ? ', and the white robe of the Emberlocked is yours' : ''}.`
+      : `Trial ${trial.num} conquered again. The ladder remembers the first time.`)
+    : `Trial ${trial.num} — ${trial.name} — holds its ground. It will be here when you return.`));
+  const row = el('div', 'menu-row');
+  if (!win) {
+    const retry = el('button', 'btn btn-primary', 'TRY AGAIN');
+    retry.onclick = () => cb.retry();
+    row.append(retry);
+  }
+  const back = el('button', 'btn' + (win ? ' btn-primary' : ''), win ? 'THE LADDER' : 'BACK');
+  back.onclick = () => cb.back();
+  row.append(back);
+  s.append(row);
+  showScreen('scr-runend');
+}
+
 // ---- sanctum (meta shop: variety, not power) -----------------------------------------------
 export function renderSanctum(cb) {
   const s = $('#scr-sanctum');
@@ -227,6 +280,13 @@ export function renderSanctum(cb) {
     Meta.robe = '#3df0ff'; saveMeta(); sfx.pick(); renderSanctum(cb);
   });
   row.append(def);
+  // trophy robe: only exists if Trial XII has been conquered
+  if (Meta.robes.includes(TROPHY_ROBE)) {
+    const trophy = card({ icon: '☄', name: 'Robe: Emberlocked', desc: 'White-hot. Won, never bought — proof of Trial XII.', cost: 0, curr: '◈', owned: true, sub: Meta.robe === TROPHY_ROBE ? 'WORN' : 'TROPHY' }, () => {
+      Meta.robe = TROPHY_ROBE; saveMeta(); sfx.pick(); renderSanctum(cb);
+    });
+    row.append(trophy);
+  }
   s.append(row);
   const back = el('button', 'btn', 'BACK');
   back.onclick = () => cb();
@@ -246,6 +306,7 @@ export function renderHelp(cb) {
       <p><b>Spell buttons</b> — bought spells appear bottom-right. Surge dashes where you're moving — it also breaks a stagger. Use it when you're flying toward the fire.</p>
       <p><b>The island shrinks.</b> Stay off the glowing rim — red glow under your feet means the lava wants you.</p>
       <p><b>The Gauntlet:</b> five matches, each first-to-3 rounds. Win rounds & kills to earn ◆ gold for the Forge. <b>Lose one match and the run ends.</b> Banked ◈ cinders unlock new spells, embers and robes in the Sanctum.</p>
+      <p><b>The Trials:</b> twelve crafted challenge fights, each with its own twist. Beat one to unlock the next; each pays cinders once. The twelfth guards a robe you cannot buy.</p>
     </div>
     <button class="btn btn-primary" id="help-back">BACK</button>`;
   $('#help-back').onclick = () => cb();

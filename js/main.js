@@ -6,13 +6,14 @@ import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
 import { FX, updateFX, clearFX, floatText } from './engine/fx.js';
 import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity } from './audio.js';
-import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, PLAYER_COLOR } from './game/data.js';
+import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
 import { Renderer } from './game/render.js';
 import {
   $, showScreen, toast, renderMenu, renderEmberPick, renderDraft, renderShop,
-  renderMatchEnd, renderRunEnd, renderSanctum, renderHelp, buildSpellButtons, updateSpellButtons,
+  renderMatchEnd, renderRunEnd, renderSanctum, renderHelp, renderTrials, renderTrialEnd,
+  buildSpellButtons, updateSpellButtons,
 } from './game/ui.js';
 
 // ---- resilience: never white-screen, keep errors inspectable -----------------
@@ -33,6 +34,8 @@ document.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, 
 
 // ---- run state -----------------------------------------------------------------
 let run = null;   // { tier, matchIdx, gold, embers, risk, owned, matchesWon, shoves }
+let trial = null; // active TRIALS entry (trial mode and gauntlet mode are exclusive)
+let trialWins = null; // { player, rival } round tallies during a trial
 let world = null;
 let musicOn = false;
 
@@ -111,12 +114,77 @@ function grantItem(it) {
 // ---- flow: menu -> ember -> (draft -> match(rounds+shop) -> matchEnd)*5 -> runEnd ----
 function gotoMenu() {
   world = null;
+  trial = null;
   setPulse(false);
   renderMenu({
     begin: beginRun,
+    trials: gotoTrials,
     sanctum: () => renderSanctum(gotoMenu),
     help: () => renderHelp(gotoMenu),
     settingsChanged: applySettings,
+  });
+}
+
+function gotoTrials() {
+  world = null;
+  trial = null;
+  renderTrials({ start: startTrial, back: gotoMenu });
+}
+
+// ---- trials: one crafted match, fixed rules, reward pays once ----------------------
+function trialPlayerCfg(t) {
+  const ranks = { force: 0, quick: 0, great: 0, ...(t.ranks || {}) };
+  const actives = t.actives || [];
+  const offensive = actives.filter((s) => SPELLS[s].offensive).length;
+  return {
+    color: Meta.robe || PLAYER_COLOR,
+    hpMax: C.HP + (t.utility === 'heart' ? 30 : 0),
+    speed: C.SPEED * (t.utility === 'boots' ? 1.12 : 1),
+    fbImpulse: C.FB_IMPULSE * (1 + 0.15 * ranks.force) * (1 - C.OFFENSE_PENALTY * offensive) * (t.impulseMul || 1),
+    fbCd: C.FB_CD * Math.pow(0.85, ranks.quick),
+    fbRadius: C.FB_RADIUS * (1 + 0.3 * ranks.great),
+    fbDmg: C.FB_DMG + 4 * ranks.great,
+    actives,
+    wardMax: t.utility === 'ward' ? 1 : 0,
+  };
+}
+
+function startTrial(t) {
+  run = null;
+  trial = t;
+  trialWins = { player: 0, rival: 0 };
+  world = new World({
+    lineup: t.lineup,
+    aiTier: t.aiTier,
+    ascension: 0,
+    embers: t.embers || [],
+    matchIdx: 0,
+    player: trialPlayerCfg(t),
+    arena: t.arena,
+    neutralMines: t.mines,
+  }, onWorldEvent);
+  buildSpellButtons(t.actives || [], castActive);
+  showScreen(null);
+  clearFX();
+  if (Meta.music && !musicOn) { startMusic(); musicOn = true; }
+  world.startRound();
+  sfx.countTick();
+}
+
+function endTrial(win) {
+  setPulse(false);
+  const t = trial;
+  const firstClear = win && !Meta.trialsDone.includes(t.id);
+  if (firstClear) {
+    Meta.trialsDone.push(t.id);
+    Meta.cinders += t.reward;
+    if (t.robe && !Meta.robes.includes(t.robe)) Meta.robes.push(t.robe);
+    saveMeta();
+  }
+  if (win) sfx.matchWin(); else sfx.runOver();
+  renderTrialEnd(win, t, firstClear, {
+    retry: () => startTrial(t),
+    back: gotoTrials,
   });
 }
 
@@ -128,6 +196,7 @@ function applySettings() {
 }
 
 function beginRun(tier) {
+  trial = null;
   run = freshRun(tier);
   Meta.runs++;
   saveMeta();
@@ -211,10 +280,12 @@ function onWorldEvent(type, data) {
       onWorldEvent._slow = setTimeout(() => { loop.speed = 1; }, victim.isPlayer ? 650 : 480);
     }
     if (killer && killer.isPlayer && !victim.isPlayer) {
-      run.gold += C.GOLD_KILL;
-      run.shoves++;
       Meta.shoves++;
-      floatText(victim.x, victim.y - 30, `+${C.GOLD_KILL}◆`, { color: '#ffd24a', size: 17 });
+      if (run) {
+        run.gold += C.GOLD_KILL;
+        run.shoves++;
+        floatText(victim.x, victim.y - 30, `+${C.GOLD_KILL}◆`, { color: '#ffd24a', size: 17 });
+      }
     }
     if (victim.isPlayer) sfx.hurt();
     return;
@@ -222,6 +293,15 @@ function onWorldEvent(type, data) {
   if (type === 'roundOver') {
     const winner = data.winner;
     const p = world.player;
+    if (trial) {
+      if (winner === p) { trialWins.player++; sfx.roundWin(); }
+      else if (winner) { trialWins.rival++; sfx.roundLose(); }
+      if (trialWins.player >= trial.target) return endTrial(true);
+      if (trialWins.rival >= trial.target) return endTrial(false);
+      world.startRound(); // straight into the next round — no shop in trials
+      sfx.countTick();
+      return;
+    }
     const top2 = p.deadOrder === -1 || p.deadOrder >= world.wizards.length - 2;
     let earned = 0;
     if (top2) earned += C.GOLD_TOP2;
@@ -329,15 +409,18 @@ const loop = new GameLoop({
   },
   render() {
     let hud = null;
-    if (world && run) {
+    if (world && (run || trial)) {
       const firstRival = world.wizards.find((w) => !w.isPlayer);
       hud = {
-        target: C.ROUND_TARGET,
-        playerWins: run.playerWins, rivalWins: run.rivalWins,
+        target: trial ? trial.target : C.ROUND_TARGET,
+        playerWins: trial ? trialWins.player : run.playerWins,
+        rivalWins: trial ? trialWins.rival : run.rivalWins,
         playerColor: world.player.color, rivalColor: firstRival ? firstRival.color : '#ff5a1e',
-        label: `MATCH ${run.matchIdx + 1} — ${world.cfg.lineup.map((r) => RIVALS[r].name.toUpperCase()).join(' & ')}`,
-        gold: run.gold,
-        emberIcons: run.embers.map((id) => EMBERS[id].icon).join(' '),
+        label: trial
+          ? `TRIAL ${trial.num} — ${trial.name.toUpperCase()}`
+          : `MATCH ${run.matchIdx + 1} — ${world.cfg.lineup.map((r) => RIVALS[r].name.toUpperCase()).join(' & ')}`,
+        gold: trial ? null : run.gold,
+        emberIcons: (trial ? (trial.embers || []) : run.embers).map((id) => EMBERS[id].icon).join(' '),
         // big control hints until the player has thrown a few fireballs
         hints: (Meta.fireCount || 0) < 6 && (world.state === 'count' || world.state === 'fight'),
       };
@@ -366,4 +449,6 @@ window.__game = {
     startMatch();
   },
   winRound() { if (world) world.wizards.forEach((w) => { if (!w.isPlayer) { w.hp = 0; w.alive && world._die(w, true); } }); },
+  startTrial(i = 0) { startTrial(TRIALS[Math.min(i, TRIALS.length - 1)]); },
+  openTrials() { gotoTrials(); },
 };

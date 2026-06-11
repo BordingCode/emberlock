@@ -1,11 +1,11 @@
 // Emberlock service worker — cache-first for own assets, runtime cache for fonts.
-const CACHE = 'emberlock-v2';
+const CACHE = 'emberlock-v3';
 const ASSETS = [
   '.',
   'index.html',
   'manifest.json',
-  'css/main.css?v=2',
-  'js/main.js?v=2',
+  'css/main.css?v=3',
+  'js/main.js?v=3',
   'js/audio.js',
   'js/engine/vec.js',
   'js/engine/loop.js',
@@ -23,7 +23,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:'reload' bypasses the HTTP cache — never snapshot stale files into a new SW cache
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {

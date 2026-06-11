@@ -30,7 +30,14 @@ export class World {
     this.roundTime = 0;
     this.countT = 0;
     this.overT = 0;
-    this.arenaR = C.R_START;
+    // arena overrides (trials): start radius, shrink delay, shrink-rate multiplier
+    const a = cfg.arena || {};
+    this.arena = {
+      rStart: a.rStart ?? C.R_START,
+      hold: a.hold ?? C.SHRINK_HOLD,
+      rate: C.SHRINK_RATE * (a.rateMul ?? 1),
+    };
+    this.arenaR = this.arena.rStart;
     this.crackA = Math.random() * TAU;
     this.winner = undefined;
     this.fireBuffer = 0; // buffered player fire request
@@ -89,7 +96,7 @@ export class World {
     this.countT = C.COUNTDOWN;
     this.time = 0; this.roundTime = 0; this.overT = 0;
     this.winner = undefined;
-    this.arenaR = C.R_START;
+    this.arenaR = this.arena.rStart;
     this.crackA = Math.random() * TAU;
     this.bolts.clear(); this.mines.clear();
     const alive = this.wizards;
@@ -97,8 +104,8 @@ export class World {
     alive.forEach((w, i) => {
       // player spawns at the bottom; others spread around the circle
       const a = Math.PI / 2 + (i / n) * TAU;
-      w.x = C.AX + Math.cos(a) * C.R_START * 0.55;
-      w.y = C.AY + Math.sin(a) * C.R_START * 0.55;
+      w.x = C.AX + Math.cos(a) * this.arena.rStart * 0.55;
+      w.y = C.AY + Math.sin(a) * this.arena.rStart * 0.55;
       w.hp = w.hpMax; w.alive = true; w.deathT = -1; w.lavaDeath = false;
       w.kvx = 0; w.kvy = 0; w.mvx = 0; w.mvy = 0;
       w.stagger = 0; w.dashT = 0; w.burn = 0; w.hitFlash = 0;
@@ -107,6 +114,19 @@ export class World {
       if (w.ai) { w.ai.target = null; w.ai.retarget = 0; }
     });
     this.deadCount = 0;
+    // masterless mines (trials): seeded mid-ring, away from every spawn
+    if (this.cfg.neutralMines) {
+      for (let i = 0; i < this.cfg.neutralMines; i++) {
+        let x = C.AX, y = C.AY;
+        for (let tries = 0; tries < 20; tries++) {
+          const a = Math.random() * TAU;
+          const r = this.arena.rStart * (0.25 + Math.random() * 0.5);
+          x = C.AX + Math.cos(a) * r; y = C.AY + Math.sin(a) * r;
+          if (this.wizards.every((w) => dist(x, y, w.x, w.y) > 70)) break;
+        }
+        this.mines.spawn((m) => { m.x = x; m.y = y; m.arm = 1.5; m.owner = null; });
+      }
+    }
   }
 
   // ---- player commands ------------------------------------------------------
@@ -267,9 +287,9 @@ export class World {
     this.roundTime += dt;
 
     // island shrink (a clock no one can stall against)
-    const rate = C.SHRINK_RATE * (this.has('tide') ? 1.3 : 1);
-    const t = Math.max(0, this.roundTime - C.SHRINK_HOLD);
-    this.arenaR = Math.max(C.R_FLOOR, C.R_START - t * rate);
+    const rate = this.arena.rate * (this.has('tide') ? 1.3 : 1);
+    const t = Math.max(0, this.roundTime - this.arena.hold);
+    this.arenaR = Math.max(C.R_FLOOR, this.arena.rStart - t * rate);
     if (this.has('rivers')) this.crackA += dt * 0.13;
 
     // player intent
