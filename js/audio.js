@@ -112,7 +112,41 @@ export const sfx = {
     noise(0.6, { gain: 0.4, type: 'lowpass', freq: 700, q: 0.5 });
     noise(0.45, { gain: 0.18, type: 'bandpass', freq: 2400, q: 1.0, delay: 0.05 });
   },
+  bossLavaDeath() { // the BIG kill (boss / match point): longer, lower, meaner
+    duck(0.75, 1.0);
+    tone(52, 1.1, { type: 'sine', gain: 0.5, slideTo: 22 });
+    tone(104, 0.5, { type: 'square', gain: 0.07, slideTo: 40 });
+    noise(0.9, { gain: 0.42, type: 'lowpass', freq: 560, q: 0.5 });
+    noise(0.6, { gain: 0.2, type: 'bandpass', freq: 2000, q: 1.0, delay: 0.1 });
+  },
+  edgeCatch() { // clutched the brink: a small bright "you live" chime
+    tone(660, 0.16, { type: 'sine', gain: 0.11, slideTo: 990 });
+    tone(990, 0.2, { type: 'triangle', gain: 0.06, delay: 0.07 });
+  },
+  showdown() { // two left: tense low swell
+    duck(0.4, 0.4);
+    tone(98, 0.5, { type: 'sawtooth', gain: 0.13, slideTo: 62 });
+    noise(0.35, { gain: 0.1, type: 'lowpass', freq: 600 });
+  },
+  eruption() { // the island bottoms out: deep telegraphed rumble
+    duck(0.5, 0.6);
+    tone(60, 0.85, { type: 'sine', gain: 0.3, slideTo: 30 });
+    noise(0.7, { gain: 0.22, type: 'lowpass', freq: 500, q: 0.5 });
+    noise(0.4, { gain: 0.1, type: 'bandpass', freq: 1800, delay: 0.12 });
+  },
+  gauntletClear() { // the rarest moment in the game — let it ring
+    duck(0.5, 2.2);
+    tone(73.4, 2.6, { type: 'sine', gain: 0.18, attack: 0.05 });
+    [293.66, 440, 587.33, 880, 1174.7, 1760].forEach((f, i) =>
+      tone(f, 0.8, { type: 'triangle', gain: 0.15, delay: i * 0.13 }));
+    [587.33, 880, 1174.7].forEach((f, i) =>
+      tone(f, 1.6, { type: 'sine', gain: 0.08, delay: 0.85 + i * 0.05, attack: 0.1 }));
+  },
   dash() { noise(0.16, { gain: 0.18, type: 'bandpass', freq: 2000, q: 2 }); tone(440, 0.15, { type: 'sawtooth', gain: 0.06, slideTo: 980 }); },
+  clash() { // two bolts annihilate: a bright spark
+    tone(1200, 0.08, { type: 'triangle', gain: 0.1, slideTo: 600 });
+    noise(0.08, { gain: 0.12, type: 'highpass', freq: 3200 });
+  },
   nova() { duck(0.4, 0.3); tone(110, 0.4, { type: 'sine', gain: 0.3, slideTo: 45 }); noise(0.3, { gain: 0.25, type: 'lowpass', freq: 1100 }); },
   mineDrop() { tone(330, 0.1, { type: 'square', gain: 0.07, slideTo: 220 }); },
   mineBeep() { tone(990, 0.07, { type: 'square', gain: 0.1 }); },
@@ -136,13 +170,15 @@ export const sfx = {
 // ---- Music: slow smouldering D-minor pad ----
 const scale = [146.83, 174.61, 196.0, 220.0, 261.63, 293.66]; // D F G A C D
 let musicStep = 0;
+let keyMul = 1; // per-arena transposition — each place sings in its own key
+export function setMusicKey(m) { keyMul = m || 1; }
 export function startMusic() {
   if (!ctx || musicTimer) return;
   musicTarget = 0.45;
   musicGain.gain.setTargetAtTime(0.45, ctx.currentTime, 1.5);
   const beat = () => {
     if (!ctx) return;
-    const root = scale[musicStep % scale.length];
+    const root = scale[musicStep % scale.length] * keyMul;
     tone(root, 2.6, { type: 'sine', gain: 0.06, attack: 0.7, dest: musicGain });
     tone(root / 2, 3.0, { type: 'sine', gain: 0.05, attack: 0.9, dest: musicGain });
     if (musicStep % 2 === 1) tone(root * 1.5, 2.0, { type: 'triangle', gain: 0.028, attack: 0.5, dest: musicGain });

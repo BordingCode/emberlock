@@ -19,8 +19,8 @@ const parts = new Pool(
   (o) => { o.life = 0; }
 );
 const rings = new Pool(
-  () => ({ alive: false, x: 0, y: 0, r: 0, max: 40, life: 0, dur: 0.4, color: '#fff', width: 3 }),
-  (o) => { o.life = 0; }
+  () => ({ alive: false, x: 0, y: 0, r: 0, max: 40, life: 0, dur: 0.4, color: '#fff', width: 3, delay: 0 }),
+  (o) => { o.life = 0; o.delay = 0; }
 );
 const floats = new Pool(
   () => ({ alive: false, x: 0, y: 0, vy: -30, life: 0, dur: 0.8, text: '', color: '#fff', size: 18, crit: false }),
@@ -53,8 +53,8 @@ export function burst(x, y, n, opts = {}) {
 }
 
 export function shockwave(x, y, opts = {}) {
-  const { color = '#fff', max = 60, dur = 0.4, width = 3 } = opts;
-  rings.spawn((o) => { o.x = x; o.y = y; o.r = 0; o.max = max; o.life = 0; o.dur = dur; o.color = color; o.width = width; });
+  const { color = '#fff', max = 60, dur = 0.4, width = 3, delay = 0 } = opts;
+  rings.spawn((o) => { o.x = x; o.y = y; o.r = 0; o.max = max; o.life = 0; o.dur = dur; o.color = color; o.width = width; o.delay = delay; });
 }
 
 export function floatText(x, y, text, opts = {}) {
@@ -83,6 +83,7 @@ export function updateFX(dt) {
     p.x += p.vx * dt; p.y += p.vy * dt;
   });
   rings.forEach((o) => {
+    if (o.delay > 0) { o.delay -= dt; return; }
     o.life += dt;
     if (o.life >= o.dur) { o.alive = false; return; }
     const k = o.life / o.dur;
@@ -99,6 +100,7 @@ export function drawFX(ctx) {
   ctx.save();
   // rings
   rings.forEach((o) => {
+    if (o.delay > 0) return;
     const k = o.life / o.dur;
     ctx.globalAlpha = (1 - k) * 0.9;
     ctx.strokeStyle = o.color;

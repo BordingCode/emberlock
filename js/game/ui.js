@@ -300,7 +300,8 @@ export function renderHelp(cb) {
   s.innerHTML = `
     <h2 class="h">HOW TO PLAY</h2>
     <div class="help-body">
-      <p><b>The only rule:</b> shove the other wizards into the lava. Damage is a tickle — <em>position kills</em>.</p>
+      <p><b>The only rule:</b> shove the other wizards into the lava. <em>Position kills</em> — and <b>the wounded fly farther</b>: every point of damage makes a wizard lighter, up to half again as much shove. Smell the blood.</p>
+      <p><b>Block with fire:</b> bolts that meet mid-air destroy each other. Your fireball is also your shield.</p>
       <p><b>LEFT thumb</b> — touch & drag anywhere on the left side to move.</p>
       <p><b>RIGHT thumb</b> — drag to aim (you'll see the line), <b>release to hurl a fireball</b>. A quick <b>tap</b> also fires, toward the spot you tapped. Slide back to your start point to cancel a drag.</p>
       <p><b>Spell buttons</b> — bought spells appear bottom-right. Surge dashes where you're moving — it also breaks a stagger. Use it when you're flying toward the fire.</p>

@@ -5,7 +5,7 @@ import { CanvasView } from './engine/canvas.js';
 import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
 import { FX, updateFX, clearFX, floatText } from './engine/fx.js';
-import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity } from './audio.js';
+import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity, setMusicKey } from './audio.js';
 import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
@@ -116,6 +116,7 @@ function gotoMenu() {
   world = null;
   trial = null;
   setPulse(false);
+  setMusicKey(1);
   renderMenu({
     begin: beginRun,
     trials: gotoTrials,
@@ -162,7 +163,9 @@ function startTrial(t) {
     player: trialPlayerCfg(t),
     arena: t.arena,
     neutralMines: t.mines,
+    theme: t.theme,
   }, onWorldEvent);
+  setMusicKey(world.theme.musicShift);
   buildSpellButtons(t.actives || [], castActive);
   showScreen(null);
   clearFX();
@@ -244,7 +247,9 @@ function startMatch() {
     embers: run.embers,
     matchIdx: run.matchIdx,
     player: playerCfg(),
+    theme: GAUNTLET[run.matchIdx].theme,
   }, onWorldEvent);
+  setMusicKey(world.theme.musicShift);
   buildSpellButtons(run.owned.actives, castActive);
   showScreen(null);
   clearFX();
@@ -272,15 +277,31 @@ function castActive(id) {
 
 function onWorldEvent(type, data) {
   if (type === 'go') { sfx.countGo(); return; }
+  if (type === 'edgeCatch') {
+    // clutch survival at the brink: a brief breath of slow-mo (never override a kill's)
+    if (loop.speed === 1) {
+      loop.speed = 0.6;
+      setTimeout(() => { if (loop.speed === 0.6) loop.speed = 1; }, 240);
+    }
+    return;
+  }
   if (type === 'kill') {
     const { victim, killer, lava } = data;
+    // the BIG kill: a boss falls, or the kill that takes the match — detonate harder
+    const lastFoe = !victim.isPlayer && world.wizards.every((w) => w.isPlayer || !w.alive);
+    const matchPoint = lastFoe && (trial
+      ? trialWins.player >= trial.target - 1
+      : run && run.playerWins >= C.ROUND_TARGET - 1);
+    const bigKill = lava && !victim.isPlayer && ((victim.rival && victim.rival.boss) || matchPoint);
     if (lava) { // slow-mo on the money moment
-      loop.speed = 0.32;
+      loop.speed = Math.min(loop.speed, bigKill ? 0.22 : 0.32);
       clearTimeout(onWorldEvent._slow);
-      onWorldEvent._slow = setTimeout(() => { loop.speed = 1; }, victim.isPlayer ? 650 : 480);
+      onWorldEvent._slow = setTimeout(() => { loop.speed = 1; }, bigKill ? 850 : victim.isPlayer ? 650 : 480);
+      if (bigKill) sfx.bossLavaDeath();
     }
     if (killer && killer.isPlayer && !victim.isPlayer) {
       Meta.shoves++;
+      if (lava) floatText(victim.x, victim.y - 48, `${victim.name.toUpperCase()} FALLS`, { color: bigKill ? '#fff3c8' : '#ffd24a', size: bigKill ? 21 : 15, crit: bigKill });
       if (run) {
         run.gold += C.GOLD_KILL;
         run.shoves++;
@@ -346,6 +367,7 @@ function startRoundFresh() {
     embers: run.embers,
     matchIdx: run.matchIdx,
     player: playerCfg(),
+    theme: GAUNTLET[run.matchIdx].theme,
   }, onWorldEvent);
   // carry per-wizard round-win tallies into the rebuilt world
   world.player.roundWins = run.playerWins;
@@ -363,8 +385,8 @@ function matchWon() {
   Meta.cinders += 2;
   Meta.bestMatch = Math.max(Meta.bestMatch, run.matchIdx);
   saveMeta();
+  if (run.matchIdx >= C.GAUNTLET_LEN) return runOver(true); // the clear gets its own fanfare
   sfx.matchWin();
-  if (run.matchIdx >= C.GAUNTLET_LEN) return runOver(true);
   renderMatchEnd(run.matchIdx - 1, lineupFor(run.matchIdx), gotoDraft);
 }
 
@@ -380,7 +402,7 @@ function runOver(win) {
   if (run.risk) cinders = Math.ceil((cinders + run.matchesWon * 2) * 1.5) - run.matchesWon * 2; // risk bonus on the whole haul
   Meta.cinders += cinders;
   saveMeta();
-  if (!win) sfx.runOver();
+  if (win) sfx.gauntletClear(); else sfx.runOver();
   const stats = {
     matchIdx: run.matchIdx, matchesWon: run.matchesWon, shoves: run.shoves,
     cinders: cinders + run.matchesWon * 2, risk: run.risk,

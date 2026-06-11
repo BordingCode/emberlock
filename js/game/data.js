@@ -129,23 +129,80 @@ export const RIVALS = {
   },
 };
 
+// ---- Arenas: visual biomes as data rows -------------------------------------
+// Same draw code, different colours — each match reads as a different PLACE.
+// void: bg gradient top/mid/bot. lava: hot->cool stops. island: top/mid/edge.
+// rim/rim2: 'r,g,b' strings for the lit edge. blobHot/blobFade: drifting lava blobs.
+// ember: floating sparks in the void. musicShift: pitch multiplier for the pad.
+export const ARENAS = {
+  emberfall: {
+    id: 'emberfall', name: 'The Emberfall',
+    void: ['#0b0712', '#160d20', '#1d0f17'],
+    lava: ['#ff7b16', '#e23f08', '#73160a', '#2a0a0e'],
+    island: ['#2c2238', '#221a2e', '#150e20'],
+    rim: '255,140,30', rim2: '255,210,74',
+    blobHot: '255,170,40', blobFade: '255,90,10',
+    ember: '#ff8a1e', musicShift: 1,
+  },
+  ashlands: {
+    id: 'ashlands', name: 'The Ashlands',
+    void: ['#0e0c0a', '#181310', '#1c1511'],
+    lava: ['#ffb14a', '#c45a10', '#5e2608', '#201007'],
+    island: ['#34302a', '#262320', '#161310'],
+    rim: '255,170,80', rim2: '255,224,150',
+    blobHot: '255,200,110', blobFade: '200,90,20',
+    ember: '#d8a868', musicShift: 0.943, // -1 semitone: dust and fatigue
+  },
+  cobalt: {
+    id: 'cobalt', name: 'The Cobalt Vents',
+    void: ['#05081a', '#0a1028', '#0c1626'],
+    lava: ['#6ee0ff', '#1e7be2', '#0c2f80', '#070b2c'],
+    island: ['#283042', '#1d2334', '#101522'],
+    rim: '110,210,255', rim2: '200,245,255',
+    blobHot: '140,220,255', blobFade: '40,110,255',
+    ember: '#5ad8ff', musicShift: 1.122, // +2 semitones: cold, wrong, beautiful
+  },
+  witchpyre: {
+    id: 'witchpyre', name: 'The Witchpyre',
+    void: ['#0e0616', '#190a24', '#1c0a1e'],
+    lava: ['#ff5ad8', '#c61ea8', '#56094e', '#1e0618'],
+    island: ['#2e2240', '#241a34', '#150e24'],
+    rim: '255,110,220', rim2: '255,190,245',
+    blobHot: '255,140,230', blobFade: '180,40,200',
+    ember: '#e06aff', musicShift: 1.059, // +1 semitone: uncanny
+  },
+  heartforge: {
+    id: 'heartforge', name: 'The Heartforge',
+    void: ['#140508', '#1f080c', '#24080a'],
+    lava: ['#ff4a2a', '#d41e08', '#700a0a', '#260507'],
+    island: ['#382026', '#2a161e', '#1a0c12'],
+    rim: '255,90,45', rim2: '255,170,100',
+    blobHot: '255,120,60', blobFade: '220,30,10',
+    ember: '#ff5a3a', musicShift: 0.891, // -2 semitones: dread. The boss room.
+  },
+};
+
 // the 5-match gauntlet: who you face, in order. Lose ONE match -> the run ends.
+// Each match is a different PLACE — the journey ends at the Heartforge.
 export const GAUNTLET = [
-  { rivals: ['pyra'] },
-  { rivals: ['cinder'] },
-  { rivals: ['gale', 'pyra'] },
-  { rivals: ['magnus', 'wisp'] },
-  { rivals: ['ash', 'wisp'], boss: true },
+  { rivals: ['pyra'], theme: 'emberfall' },
+  { rivals: ['cinder'], theme: 'ashlands' },
+  { rivals: ['gale', 'pyra'], theme: 'cobalt' },
+  { rivals: ['magnus', 'wisp'], theme: 'witchpyre' },
+  { rivals: ['ash', 'wisp'], boss: true, theme: 'heartforge' },
 ];
 
 // per-match AI competence (the honest difficulty dial: the bot gets BETTER, never buffed)
 // aimErr = gaussian sigma in radians; react = seconds before responding to a new threat
+// cdMul = fireball cooldown multiplier (early rivals throw slower); killShot = how
+// reliably they take the shove-you-into-lava shot when the angle is right.
+// Tiers 0-1 are deliberately soft — the first matches teach; the last ones judge.
 export const AI_TIERS = [
-  { aimErr: 0.30, react: 0.42, dodgeMul: 0.60 },
-  { aimErr: 0.24, react: 0.36, dodgeMul: 0.75 },
-  { aimErr: 0.19, react: 0.30, dodgeMul: 0.90 },
-  { aimErr: 0.15, react: 0.24, dodgeMul: 1.00 },
-  { aimErr: 0.11, react: 0.18, dodgeMul: 1.15 },
+  { aimErr: 0.44, react: 0.60, dodgeMul: 0.45, cdMul: 1.45, killShot: 0.62 },
+  { aimErr: 0.32, react: 0.46, dodgeMul: 0.65, cdMul: 1.20, killShot: 0.78 },
+  { aimErr: 0.20, react: 0.30, dodgeMul: 0.90, cdMul: 1.00, killShot: 0.92 },
+  { aimErr: 0.15, react: 0.24, dodgeMul: 1.00, cdMul: 1.00, killShot: 0.92 },
+  { aimErr: 0.11, react: 0.18, dodgeMul: 1.15, cdMul: 1.00, killShot: 0.92 },
 ];
 
 // ---- Embers (run modifiers) -------------------------------------------------
@@ -180,37 +237,37 @@ export const TRIALS = [
   { id: 't1', num: 'I', name: 'First Spark', reward: 2,
     desc: 'Pyra. One round, winner takes all. Your shove is already strengthened — land it.',
     lineup: ['pyra'], target: 1, aiTier: 0, ranks: { force: 1 } },
-  { id: 't2', num: 'II', name: 'Small Ground', reward: 2,
+  { id: 't2', theme: 'ashlands', num: 'II', name: 'Small Ground', reward: 2,
     desc: 'Old Cinder on a half-sized island. Nowhere to hide from his anchors.',
     lineup: ['cinder'], target: 2, aiTier: 1, arena: { rStart: 150 } },
-  { id: 't3', num: 'III', name: 'Bare Hands', reward: 3,
+  { id: 't3', theme: 'cobalt', num: 'III', name: 'Bare Hands', reward: 3,
     desc: 'Gale, and you carry nothing but the basic fireball. Pure aim.',
     lineup: ['gale'], target: 2, aiTier: 1 },
-  { id: 't4', num: 'IV', name: 'Glass Dance', reward: 3,
+  { id: 't4', theme: 'witchpyre', num: 'IV', name: 'Glass Dance', reward: 3,
     desc: 'Wisp under Glass and Volatile. Every shove is nearly lethal — both ways.',
     lineup: ['wisp'], target: 2, aiTier: 1, embers: ['glass', 'volatile'] },
-  { id: 't5', num: 'V', name: 'Two Suns', reward: 4,
+  { id: 't5', theme: 'cobalt', num: 'V', name: 'Two Suns', reward: 4,
     desc: 'Pyra and Gale together. You get Surge — use it to keep them apart.',
     lineup: ['pyra', 'gale'], target: 2, aiTier: 1, actives: ['surge'] },
-  { id: 't6', num: 'VI', name: 'Minefield', reward: 4,
+  { id: 't6', theme: 'ashlands', num: 'VI', name: 'Minefield', reward: 4,
     desc: 'Magnus, on ground seeded with six masterless anchors.',
     lineup: ['magnus'], target: 2, aiTier: 2, mines: 6 },
-  { id: 't7', num: 'VII', name: 'Rising Fast', reward: 4,
+  { id: 't7', theme: 'cobalt', num: 'VII', name: 'Rising Fast', reward: 4,
     desc: 'The island sinks from the first second, twice as fast. Cinder and Wisp wait.',
     lineup: ['cinder', 'wisp'], target: 2, aiTier: 2, arena: { hold: 0, rateMul: 2 } },
-  { id: 't8', num: 'VIII', name: 'The Long Night', reward: 5,
+  { id: 't8', theme: 'heartforge', num: 'VIII', name: 'The Long Night', reward: 5,
     desc: 'Magnus and Pyra across a river of fire. First to four rounds.',
     lineup: ['magnus', 'pyra'], target: 4, aiTier: 2, embers: ['rivers'], actives: ['surge'] },
-  { id: 't9', num: 'IX', name: 'Featherweight', reward: 5,
+  { id: 't9', theme: 'witchpyre', num: 'IX', name: 'Featherweight', reward: 5,
     desc: 'Your shove is a third weaker. Theirs is not. Position twice as well.',
     lineup: ['gale', 'wisp'], target: 2, aiTier: 2, impulseMul: 0.7 },
-  { id: 't10', num: 'X', name: 'Three Flames', reward: 6,
+  { id: 't10', theme: 'witchpyre', num: 'X', name: 'Three Flames', reward: 6,
     desc: 'Pyra, Gale and Wisp at once. Let them tangle — then push.',
     lineup: ['pyra', 'gale', 'wisp'], target: 2, aiTier: 2, actives: ['surge'], utility: 'ward' },
-  { id: 't11', num: 'XI', name: "Ash's Shadow", reward: 6,
+  { id: 't11', theme: 'heartforge', num: 'XI', name: "Ash's Shadow", reward: 6,
     desc: 'The Last Flame alone, at his sharpest. Prove the gauntlet was no luck.',
     lineup: ['ash'], target: 2, aiTier: 4, ranks: { force: 1 }, actives: ['surge'] },
-  { id: 't12', num: 'XII', name: 'The Emberlocked', reward: 10, robe: '#f5f2ff',
+  { id: 't12', theme: 'heartforge', num: 'XII', name: 'The Emberlocked', reward: 10, robe: '#f5f2ff',
     desc: 'Ash and Magnus, on Glass, on a Rising Tide. First to three. The white robe of the Emberlocked awaits.',
     lineup: ['ash', 'magnus'], target: 3, aiTier: 4, embers: ['glass', 'tide'], ranks: { force: 1 }, actives: ['surge'], utility: 'ward' },
 ];

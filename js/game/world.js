@@ -4,7 +4,7 @@ import { TAU, clamp, dist, angle } from '../engine/vec.js';
 import { Pool } from '../engine/pool.js';
 import { burst, shockwave, floatText, addTrauma, hitStop, screenFlash } from '../engine/fx.js';
 import { sfx } from '../audio.js';
-import { C, RIVALS, SPELLS, AI_TIERS } from './data.js';
+import { C, RIVALS, SPELLS, AI_TIERS, ARENAS } from './data.js';
 
 // ~N(0,1) via sum of uniforms — fine for aim error
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;
@@ -37,6 +37,7 @@ export class World {
       hold: a.hold ?? C.SHRINK_HOLD,
       rate: C.SHRINK_RATE * (a.rateMul ?? 1),
     };
+    this.theme = ARENAS[cfg.theme] || ARENAS.emberfall;
     this.arenaR = this.arena.rStart;
     this.crackA = Math.random() * TAU;
     this.winner = undefined;
@@ -60,13 +61,15 @@ export class World {
       this.wizards.push(this._wiz({
         id: rid, isPlayer: false, name: r.name, color: r.color, dark: r.dark, rival: r,
         hpMax: C.HP * (r.hpMul || 1), speed: C.SPEED * (r.speedMul || 1),
-        fbImpulse: C.FB_IMPULSE * (r.forceMul || 1), fbCd: C.FB_CD,
+        fbImpulse: C.FB_IMPULSE * (r.forceMul || 1),
+        fbCd: C.FB_CD * Math.max(1, (tier.cdMul ?? 1) - asc * 0.15),
         fbRadius: C.FB_RADIUS, fbDmg: C.FB_DMG, actives: r.loadout.filter((s) => SPELLS[s].kind === 'active'),
         wardMax: r.loadout.includes('ward') ? 1 : 0,
         ai: {
           aimErr: Math.max(0.06, tier.aimErr - asc * 0.03),
           react: Math.max(0.1, tier.react - asc * 0.04),
           dodgeMul: tier.dodgeMul + asc * 0.15,
+          killShot: Math.min(0.95, (tier.killShot ?? 0.92) + asc * 0.03),
           w: r.weights, range: r.range, aggro: r.aggro || 1,
           centerHug: r.centerHug || 0, erratic: r.erratic || 0,
           target: null, retarget: 0, think: Math.random() * 0.1,
@@ -114,6 +117,9 @@ export class World {
       if (w.ai) { w.ai.target = null; w.ai.retarget = 0; }
     });
     this.deadCount = 0;
+    this._floorHit = false;
+    this._showdown = false;
+    this.player._brink = false;
     // masterless mines (trials): seeded mid-ring, away from every spawn
     if (this.cfg.neutralMines) {
       for (let i = 0; i < this.cfg.neutralMines; i++) {
@@ -240,7 +246,10 @@ export class World {
       sfx.ward();
       return;
     }
-    victim.kvx += nx * imp; victim.kvy += ny * imp;
+    // Warlock's signature rule: the wounded fly farther. Damage makes you LIGHT —
+    // up to +50% knockback at the brink of death. Blood in the water.
+    const light = 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    victim.kvx += nx * imp * light; victim.kvy += ny * imp * light;
     if (victim.dashT <= 0) victim.stagger = Math.max(victim.stagger, C.STAGGER);
     victim.hp -= dmg;
     victim.hitFlash = 0.09;
@@ -260,10 +269,14 @@ export class World {
     w.deadOrder = this.deadCount++;
     const killer = (this.time - w.lastHitT < 3) ? w.lastHitBy : null;
     if (inLava) {
-      // the money moment
-      burst(w.x, w.y, 34, { color: '#ff8a1e', speed: 240, life: 0.8, grav: -160, r: 3.4 });
-      burst(w.x, w.y, 16, { color: '#ffd24a', speed: 160, life: 0.6, grav: -220, r: 2.6 });
+      // the money moment: a directional geyser where they fell, not a symmetric puff
+      const oa = angle(C.AX, C.AY, w.x, w.y); // outward from the island's heart
+      burst(w.x, w.y, 26, { color: '#ff8a1e', dir: oa, spread: 0.8, speed: 270, life: 0.8, grav: -170, r: 3.4 });
+      burst(w.x, w.y, 16, { color: '#ffd24a', dir: -Math.PI / 2, spread: 0.4, speed: 340, life: 0.7, grav: -260, r: 2.6 }); // the pillar
+      burst(w.x, w.y, 10, { color: w.color, dir: -Math.PI / 2, spread: 0.55, speed: 220, life: 0.65, grav: -200, r: 2.2 }); // their colour goes up with it
       shockwave(w.x, w.y, { color: '#ff5a1e', max: 80, dur: 0.5, width: 6 });
+      shockwave(w.x, w.y, { color: '#ffd24a', max: 58, dur: 0.45, width: 4, delay: 0.12 });
+      shockwave(w.x, w.y, { color: '#fff3c8', max: 36, dur: 0.4, width: 3, delay: 0.24 });
       screenFlash(0.22, '255,120,30');
       addTrauma(0.4);
       hitStop(0.12);
@@ -291,6 +304,15 @@ export class World {
     const t = Math.max(0, this.roundTime - this.arena.hold);
     this.arenaR = Math.max(C.R_FLOOR, this.arena.rStart - t * rate);
     if (this.has('rivers')) this.crackA += dt * 0.13;
+    // the island bottoms out: one telegraphed eruption marks the knife-fight finale
+    if (!this._floorHit && this.state === 'fight' && this.arenaR <= C.R_FLOOR && this.arena.rStart > C.R_FLOOR + 1) {
+      this._floorHit = true;
+      shockwave(C.AX, C.AY, { color: '#ff8a1e', max: C.R_START, dur: 0.7, width: 7 });
+      shockwave(C.AX, C.AY, { color: '#ffd24a', max: C.R_START * 0.7, dur: 0.6, width: 4, delay: 0.15 });
+      screenFlash(0.15, '255,120,30');
+      addTrauma(0.3);
+      sfx.eruption();
+    }
 
     // player intent
     if (this.player.alive && this.state === 'fight') this._playerStep(dt, playerIntent);
@@ -360,6 +382,23 @@ export class World {
       } else {
         w.burn = Math.max(0, w.burn - dt * 1.4);
       }
+
+      // the edge-catch: shoved hard to the brink, knockback spends itself, you LIVE.
+      // A highlight-reel beat — celebrate it (once per brink, player only).
+      if (w.isPlayer && w.alive) {
+        const kv2 = Math.hypot(w.kvx, w.kvy);
+        if (kv2 > 260 && w.nearEdge > 0.6) w._brink = true;
+        else if (w._brink && kv2 < 30) {
+          w._brink = false;
+          if (w.nearEdge > 0.5 && !inLava) {
+            shockwave(w.x, w.y, { color: '#9fd8ff', max: 50, dur: 0.35, width: 4 });
+            burst(w.x, w.y + 8, 8, { color: '#9fd8ff', speed: 120, life: 0.4, grav: -120 });
+            sfx.edgeCatch();
+            this.emit('edgeCatch', {});
+          }
+        }
+        if (w.nearEdge < 0.2) w._brink = false;
+      }
     }
 
     // soft wizard-wizard collision
@@ -374,6 +413,24 @@ export class World {
         const nx = (b.x - a.x) / d, ny = (b.y - a.y) / d;
         a.x -= nx * push; a.y -= ny * push;
         b.x += nx * push; b.y += ny * push;
+      }
+    }
+
+    // projectile vs projectile: rival bolts annihilate each other (Warlock's
+    // defensive layer — block the incoming shot with your own). Hooks pass through.
+    {
+      const live = [];
+      this.bolts.forEach((b) => { if (b.kind !== 'hook') live.push(b); });
+      for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+        const a = live[i], b = live[j];
+        if (!a.alive || !b.alive || a.owner === b.owner) continue;
+        if (dist(a.x, a.y, b.x, b.y) < a.r + b.r + 2) {
+          a.alive = false; b.alive = false;
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          burst(mx, my, 12, { color: '#fff6d8', speed: 170, life: 0.35, r: 2.4 });
+          shockwave(mx, my, { color: '#ffd24a', max: 26, dur: 0.22, width: 2.5 });
+          sfx.clash();
+        }
       }
     }
 
@@ -400,8 +457,10 @@ export class World {
         if (dist(b.x, b.y, w.x, w.y) < b.r + C.WIZ_R) {
           const sp = Math.hypot(b.vx, b.vy) || 1;
           if (b.kind === 'hook') {
-            // the yank: pull the victim TOWARD the caster
+            // the yank: pull the victim TOWARD the caster. Snap taut on connect.
             const a = angle(w.x, w.y, b.owner.x, b.owner.y);
+            shockwave(w.x, w.y, { color: '#ffffff', max: 30, dur: 0.22, width: 3 });
+            burst(w.x, w.y, 8, { color: '#cfd6e4', dir: a, spread: 0.5, speed: 240, life: 0.3 });
             this._hitWizard(w, b.owner, Math.cos(a), Math.sin(a), b.imp, b.dmg, 'hook');
           } else {
             this._hitWizard(w, b.owner, b.vx / sp, b.vy / sp, b.imp, b.dmg, b.kind);
@@ -443,6 +502,14 @@ export class World {
     // round over?
     if (this.state === 'fight') {
       const alive = this.wizards.filter((w) => w.alive);
+      // multi-rival round narrows to you and ONE other: the showdown beat
+      if (!this._showdown && alive.length === 2 && this.wizards.length > 2 && alive.includes(this.player)) {
+        this._showdown = true;
+        const foe = alive.find((w) => !w.isPlayer);
+        floatText(C.AX, C.AY - 70, 'SHOWDOWN', { color: foe ? foe.color : '#ffd24a', size: 24, crit: true });
+        addTrauma(0.16);
+        sfx.showdown();
+      }
       if (alive.length <= 1) {
         this.state = 'over';
         this.winner = alive[0] || null;
@@ -578,7 +645,7 @@ export class World {
       const aim = this._aimAt(w, t, C.FB_SPEED);
       const shotx = Math.cos(aim), shoty = Math.sin(aim);
       const alignment = shotx * outx + shoty * outy; // >0 = pushes toward lava
-      const p = alignment > 0.1 ? 0.92 : 0.5;
+      const p = alignment > 0.1 ? ai.killShot : 0.5;
       if (Math.random() < p) this._fireball(w, aim + gauss() * ai.aimErr);
     }
 

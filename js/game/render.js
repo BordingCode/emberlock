@@ -3,7 +3,7 @@
 // bright, cool basalt island so the heat reads by contrast. No shadowBlur (slow).
 import { TAU, clamp } from '../engine/vec.js';
 import { FX, drawFX } from '../engine/fx.js';
-import { C } from './data.js';
+import { C, ARENAS } from './data.js';
 
 // precomputed ambience: drifting hot blobs in the lava + floating embers in the void
 const BLOBS = [];
@@ -31,14 +31,15 @@ export class Renderer {
     this.t += dt;
     const { ctx } = this.view;
     const t = this.t;
+    const th = (world && world.theme) || ARENAS.emberfall; // the arena's palette
 
     // ---- background void (screen space, fills everything) ----
     ctx.setTransform(this.view.dpr, 0, 0, this.view.dpr, 0, 0);
     const W = this.view.cssW, H = this.view.cssH;
     let g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#0b0712');
-    g.addColorStop(0.55, '#160d20');
-    g.addColorStop(1, '#1d0f17');
+    g.addColorStop(0, th.void[0]);
+    g.addColorStop(0.55, th.void[1]);
+    g.addColorStop(1, th.void[2]);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     // floating embers in the dark
@@ -47,7 +48,7 @@ export class Renderer {
       const y = ((e.y - (t * e.sp) / H) % 1 + 1) % 1;
       const a = 0.12 + 0.1 * Math.sin(t * 2 + e.ph);
       ctx.globalAlpha = a;
-      ctx.fillStyle = '#ff8a1e';
+      ctx.fillStyle = th.ember;
       ctx.beginPath(); ctx.arc(e.x * W, y * H, e.size, 0, TAU); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -99,14 +100,15 @@ export class Renderer {
 
   // ---- lava: the light source -------------------------------------------------
   drawLava(ctx, world, t) {
+    const th = world.theme;
     const R = world.arenaR;
     const outer = C.R_START + 190;
     // base pool: brightest right at the island rim, cooling outward
     let g = ctx.createRadialGradient(C.AX, C.AY, Math.max(1, R - 8), C.AX, C.AY, outer);
-    g.addColorStop(0, '#ff7b16');
-    g.addColorStop(0.18, '#e23f08');
-    g.addColorStop(0.55, '#73160a');
-    g.addColorStop(1, '#2a0a0e');
+    g.addColorStop(0, th.lava[0]);
+    g.addColorStop(0.18, th.lava[1]);
+    g.addColorStop(0.55, th.lava[2]);
+    g.addColorStop(1, th.lava[3]);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(C.AX, C.AY, outer, 0, TAU); ctx.fill();
     // drifting hot blobs (additive) — the lava lives
@@ -117,8 +119,8 @@ export class Renderer {
       const x = C.AX + Math.cos(a) * rr, y = C.AY + Math.sin(a) * rr;
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.3 + b.ph);
       const gg = ctx.createRadialGradient(x, y, 0, x, y, b.size);
-      gg.addColorStop(0, `rgba(255,170,40,${0.16 + pulse * 0.12})`);
-      gg.addColorStop(1, 'rgba(255,90,10,0)');
+      gg.addColorStop(0, `rgba(${th.blobHot},${0.16 + pulse * 0.12})`);
+      gg.addColorStop(1, `rgba(${th.blobFade},0)`);
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.arc(x, y, b.size, 0, TAU); ctx.fill();
     }
@@ -127,12 +129,13 @@ export class Renderer {
 
   // ---- the island -------------------------------------------------------------
   drawIsland(ctx, world, t) {
+    const th = world.theme;
     const R = world.arenaR;
     // basalt disc — cool and dark so the lava reads HOT by contrast
     let g = ctx.createRadialGradient(C.AX, C.AY - R * 0.25, R * 0.1, C.AX, C.AY, R);
-    g.addColorStop(0, '#2c2238');
-    g.addColorStop(0.75, '#221a2e');
-    g.addColorStop(1, '#150e20');
+    g.addColorStop(0, th.island[0]);
+    g.addColorStop(0.75, th.island[1]);
+    g.addColorStop(1, th.island[2]);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(C.AX, C.AY, R, 0, TAU); ctx.fill();
     // static pebble texture (scales with the island — it is sinking, after all)
@@ -144,17 +147,17 @@ export class Renderer {
     // warm rim-light: the lava licks the edge (animated, additive)
     ctx.globalCompositeOperation = 'lighter';
     const pulse = 0.75 + 0.25 * Math.sin(t * 2.4);
-    ctx.strokeStyle = `rgba(255,140,30,${0.5 * pulse})`;
+    ctx.strokeStyle = `rgba(${th.rim},${0.5 * pulse})`;
     ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(C.AX, C.AY, R - 2, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = `rgba(255,210,74,${0.9 * pulse})`;
+    ctx.strokeStyle = `rgba(${th.rim2},${0.9 * pulse})`;
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(C.AX, C.AY, R - 1, 0, TAU); ctx.stroke();
     ctx.globalCompositeOperation = 'source-over';
     // shrink warning: crumble sparks at the rim while it eats inward
     if (world.roundTime > world.arena.hold - 1.2 && R > C.R_FLOOR + 1 && Math.random() < 0.5) {
       const a = Math.random() * TAU;
-      ctx.fillStyle = 'rgba(255,170,60,0.8)';
+      ctx.fillStyle = `rgba(${th.rim},0.8)`;
       ctx.beginPath(); ctx.arc(C.AX + Math.cos(a) * (R - 3), C.AY + Math.sin(a) * (R - 3), 1.6, 0, TAU); ctx.fill();
     }
   }
@@ -349,22 +352,28 @@ export class Renderer {
   drawBolts(ctx, world, t) {
     ctx.save();
     world.bolts.forEach((b) => {
-      const color = b.kind === 'mote' ? '#c63dff' : b.kind === 'hook' ? '#cfd6e4' : '#ffd24a';
+      // your fireballs wear your robe colour — your build is visible in your output
+      const own = b.owner && b.owner.isPlayer && (b.kind === 'fb' || b.kind === 'scatter');
+      const color = own ? b.owner.color : b.kind === 'mote' ? '#c63dff' : b.kind === 'hook' ? '#cfd6e4' : '#ffd24a';
       const core = b.kind === 'mote' ? '#f0c8ff' : b.kind === 'hook' ? '#ffffff' : '#fff6d8';
       if (b.kind === 'hook' && b.owner) {
-        ctx.strokeStyle = 'rgba(207,214,228,0.6)';
-        ctx.lineWidth = 1.5;
+        // segmented chain, not a thread
+        ctx.strokeStyle = 'rgba(207,214,228,0.75)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 5]);
         ctx.beginPath(); ctx.moveTo(b.owner.x, b.owner.y - 4); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.setLineDash([]);
       }
       ctx.globalCompositeOperation = 'lighter';
-      // motion smear
+      // motion smear — scatter shards are short and sharp, fireballs trail long
+      const smear = b.kind === 'scatter' ? 2.4 : 4.5;
       const sp = Math.hypot(b.vx, b.vy) || 1;
       ctx.strokeStyle = color;
       ctx.globalAlpha = 0.5;
       ctx.lineWidth = b.r * 1.1;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(b.x - (b.vx / sp) * b.r * 4.5, b.y - (b.vy / sp) * b.r * 4.5);
+      ctx.moveTo(b.x - (b.vx / sp) * b.r * smear, b.y - (b.vy / sp) * b.r * smear);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
       // halo + core
@@ -374,6 +383,13 @@ export class Renderer {
       ctx.globalAlpha = 0.6;
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.6, 0, TAU); ctx.fill();
+      // the mote breathes: a slow pulsing seeker ring
+      if (b.kind === 'mote') {
+        ctx.globalAlpha = 0.45 + 0.25 * Math.sin(t * 6);
+        ctx.strokeStyle = '#e09aff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1.9 + 0.35 * Math.sin(t * 6)), 0, TAU); ctx.stroke();
+      }
       ctx.globalAlpha = 1;
       ctx.fillStyle = core;
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.8, 0, TAU); ctx.fill();
@@ -440,6 +456,13 @@ export class Renderer {
       ctx.lineWidth = 6;
       ctx.strokeText(String(n), C.AX, C.AY - 40);
       ctx.fillText(String(n), C.AX, C.AY - 40);
+      // where you are fighting — the place gets a name card
+      ctx.globalAlpha = 0.8;
+      ctx.font = '700 16px Cinzel, serif';
+      ctx.fillStyle = `rgba(${world.theme.rim2},0.9)`;
+      ctx.lineWidth = 4;
+      ctx.strokeText(world.theme.name.toUpperCase(), C.AX, C.AY + 8);
+      ctx.fillText(world.theme.name.toUpperCase(), C.AX, C.AY + 8);
     } else if (world.state === 'fight' && world.roundTime < 0.6) {
       ctx.globalAlpha = 1 - world.roundTime / 0.6;
       ctx.font = '900 56px Cinzel, serif';
