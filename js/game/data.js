@@ -41,8 +41,8 @@ export const C = {
 // kind: 'active' (slot-limited, gets a button) | 'utility' | 'upgrade'
 export const SPELLS = {
   surge: {
-    id: 'surge', kind: 'active', name: 'Surge', icon: '⟫', cost: 6, cd: 5, offensive: false,
-    desc: 'Dash in your move direction. Escape a shove — or dive for the kill.',
+    id: 'surge', kind: 'active', name: 'Surge', icon: '⟫', cost: 6, cd: 6.5, offensive: false, offenseWeight: 0.5,
+    desc: 'Dash in your move direction. Escape a shove — or dive for the kill. (Costs a little of your base shove.)',
     aiDesc: 'dash',
   },
   scatter: {

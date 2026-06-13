@@ -163,6 +163,10 @@ export const sfx = {
   buy() { tone(587, 0.12, { type: 'sine', gain: 0.14, slideTo: 880 }); tone(880, 0.14, { type: 'sine', gain: 0.08, delay: 0.06 }); },
   pick() { tone(440, 0.16, { type: 'triangle', gain: 0.13, slideTo: 660 }); },
   emberSeal() { duck(0.6, 0.55); tone(130, 0.55, { type: 'sawtooth', gain: 0.15, slideTo: 85 }); tone(390, 0.5, { type: 'sine', gain: 0.07, delay: 0.05, slideTo: 540 }); },
+  fizzle() { // a too-small aim release: a soft, short "not yet" — reassures, never harsh
+    tone(360, 0.1, { type: 'sine', gain: 0.05, slideTo: 240 });
+    noise(0.06, { gain: 0.04, type: 'bandpass', freq: 1800, q: 1.4 });
+  },
   countTick() { tone(440, 0.07, { type: 'sine', gain: 0.1 }); },
   countGo() { tone(660, 0.2, { type: 'sine', gain: 0.16, slideTo: 880 }); },
 };

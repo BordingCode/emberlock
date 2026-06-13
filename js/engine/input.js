@@ -9,6 +9,7 @@ export class TwinStick {
     this.aim = { id: null, ox: 0, oy: 0, x: 0, y: 0, t0: 0 };
     this.fired = null;          // {nx,ny} set on aim release, consumed by the sim
     this.tapped = null;         // {x,y} world point: quick tap on the aim side = fire at it
+    this.fizzled = null;        // {x,y}: a too-small/too-slow release — give a tiny "nope" puff
     this.anyTap = false;        // any pointerdown this frame (menu/unlock audio)
 
     const onDown = (e) => {
@@ -43,6 +44,9 @@ export class TwinStick {
         if (len >= 16) this.fired = { nx: dx / len, ny: dy / len };
         // a quick tap (no real drag) fires AT the tapped spot — beginner-friendly
         else if (performance.now() - this.aim.t0 < 300) this.tapped = { x: this.aim.x, y: this.aim.y };
+        // a slow, sub-threshold release does nothing useful — but ALWAYS answer it
+        // with a tiny fizzle so a beginner never feels the control is broken
+        else this.fizzled = { x: this.aim.x, y: this.aim.y };
         this.aim.id = null;
       }
     };
@@ -77,5 +81,6 @@ export class TwinStick {
 
   takeFire() { const f = this.fired; this.fired = null; return f; }
   takeTap() { const t = this.tapped; this.tapped = null; return t; }
+  takeFizzle() { const f = this.fizzled; this.fizzled = null; return f; }
   consumeTap() { const t = this.anyTap; this.anyTap = false; return t; }
 }

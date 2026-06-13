@@ -235,9 +235,25 @@ export class Renderer {
         ctx.beginPath(); ctx.arc(0, 8, 30, 0, TAU); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
       }
-      // draw-time squash along the knockback direction (never moves the sim)
+      // draw-time squash along the knockback direction (never moves the sim).
+      // The wounded fly farther (sim rule) — so make a LOW-HP shove READ bigger:
+      // a deeper stretch + a brighter launch smear behind them. Draw-only.
       if (w.squashT > 0) {
-        const s = (w.squashT / 0.22) * 0.3;
+        const wound = 1 - clamp(w.hp / w.hpMax, 0, 1); // 0 healthy -> 1 near death
+        const k = w.squashT / 0.22;                    // 1 at impact -> 0
+        // brighter launch trail opposite the shove, longer & hotter the more wounded
+        const len = 18 + wound * 34;
+        const tx = -Math.cos(w.squashA) * len, ty = -Math.sin(w.squashA) * len;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = (0.18 + wound * 0.45) * k;
+        ctx.strokeStyle = wound > 0.45 ? '#ffd24a' : w.color;
+        ctx.lineWidth = (4 + wound * 7) * k;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(0, 0); ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        // squash: base 0.3, up to ~0.6 stretch when near death — the launch looks heavier
+        const s = k * (0.3 + wound * 0.32);
         ctx.rotate(w.squashA);
         ctx.scale(1 + s, 1 - s);
         ctx.rotate(-w.squashA);

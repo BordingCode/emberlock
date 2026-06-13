@@ -4,7 +4,7 @@
 import { CanvasView } from './engine/canvas.js';
 import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
-import { FX, updateFX, clearFX, floatText } from './engine/fx.js';
+import { FX, updateFX, clearFX, floatText, burst } from './engine/fx.js';
 import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity, setMusicKey } from './audio.js';
 import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
@@ -49,7 +49,8 @@ function freshRun(tier) {
 
 function playerCfg() {
   const o = run.owned;
-  const offensive = o.actives.filter((s) => SPELLS[s].offensive).length;
+  // offence "weight": full 1 per offensive spell; Surge etc. carry a partial weight
+  const offensive = o.actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
     color: Meta.robe || PLAYER_COLOR,
     hpMax: C.HP + (o.utility === 'heart' ? 30 : 0),
@@ -83,7 +84,8 @@ function shopItems() {
     if (s.kind === 'active') {
       if (o.actives.includes(s.id)) continue;
       const full = o.actives.length >= 2;
-      items.push({ id: s.id, kind: 'active', icon: s.icon, name: s.name, desc: s.desc, cost: s.cost, sub: s.offensive ? 'offensive — −6% base shove' : undefined, disabled: full || run.gold < s.cost, ...(full ? { sub: 'SPELL SLOTS FULL' } : {}) });
+      const shoveCut = s.offensive ? 6 : Math.round((s.offenseWeight || 0) * 6);
+      items.push({ id: s.id, kind: 'active', icon: s.icon, name: s.name, desc: s.desc, cost: s.cost, sub: shoveCut ? `−${shoveCut}% base shove` : undefined, disabled: full || run.gold < s.cost, ...(full ? { sub: 'SPELL SLOTS FULL' } : {}) });
     } else if (s.kind === 'utility') {
       if (o.utility === s.id) continue;
       const full = !!o.utility;
@@ -136,7 +138,7 @@ function gotoTrials() {
 function trialPlayerCfg(t) {
   const ranks = { force: 0, quick: 0, great: 0, ...(t.ranks || {}) };
   const actives = t.actives || [];
-  const offensive = actives.filter((s) => SPELLS[s].offensive).length;
+  const offensive = actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
     color: Meta.robe || PLAYER_COLOR,
     hpMax: C.HP + (t.utility === 'heart' ? 30 : 0),
@@ -342,8 +344,8 @@ function onWorldEvent(type, data) {
 
 // between rounds: the Forge
 function openShop() {
-  const offensive = run.owned.actives.filter((s) => SPELLS[s].offensive).length;
-  const note = offensive > 0 ? `Carrying ${offensive} offensive spell${offensive > 1 ? 's' : ''}: base shove −${offensive * 6}%.` : null;
+  const weight = run.owned.actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
+  const note = weight > 0 ? `Your active spells cost base shove −${Math.round(weight * 6)}%.` : null;
   renderShop(run.gold, shopItems(), note, {
     buy: (it) => {
       if (run.gold < it.cost) return;
@@ -424,6 +426,13 @@ const loop = new GameLoop({
       const p = world.player;
       const len = Math.hypot(tap.x - p.x, tap.y - p.y);
       if (len > 8) { world.requestFire({ nx: (tap.x - p.x) / len, ny: (tap.y - p.y) / len }); countFire(); }
+    }
+    // sub-threshold aim release: too small to fire, but never leave it silent —
+    // a tiny puff at the release point + a soft tone so the control always answers
+    const fizzle = input.takeFizzle();
+    if (fizzle && world.player.alive && world.state === 'fight') {
+      burst(fizzle.x, fizzle.y, 5, { color: '#9fd8ff', speed: 55, life: 0.32, r: 1.8 });
+      sfx.fizzle();
     }
     world.update(dt, { joy: input.joystick() });
     setPulse(world.state === 'fight' && world.arenaR < 130 && Meta.music);
