@@ -52,6 +52,8 @@ export class World {
       id: 'you', isPlayer: true, name: 'You', color: p.color, dark: '#08323a',
       hpMax: p.hpMax, speed: p.speed, fbImpulse: p.fbImpulse, fbCd: p.fbCd,
       fbRadius: p.fbRadius, fbDmg: p.fbDmg, actives: p.actives, wardMax: p.wardMax,
+      fbSpeed: p.fbSpeed ?? C.FB_SPEED,
+      forceCap: !!p.forceCap, greatCap: !!p.greatCap, heavy: !!p.heavy,
     });
     this.wizards.push(this.player);
     const tier = AI_TIERS[clamp(this.cfg.aiTier, 0, AI_TIERS.length - 1)];
@@ -85,6 +87,7 @@ export class World {
     return {
       x: 0, y: 0, mvx: 0, mvy: 0, kvx: 0, kvy: 0,
       hp: o.hpMax, hpMax: o.hpMax, alive: true, deathT: -1, lavaDeath: false,
+      fbSpeed: C.FB_SPEED, forceCap: false, greatCap: false, heavy: false,
       stagger: 0, dashT: 0, burn: 0, hitFlash: 0, nearEdge: 0,
       facing: 1, bob: Math.random() * TAU,
       fireCd: 0, casting: null, cds: {}, ward: 0, wardMax: o.wardMax || 0,
@@ -248,7 +251,11 @@ export class World {
     }
     // Warlock's signature rule: the wounded fly farther. Damage makes you LIGHT —
     // up to +50% knockback at the brink of death. Blood in the water.
-    const light = 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    // A Heartstone heart stays HEAVY — it never flies farther for being wounded.
+    const light = victim.heavy ? 1 : 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    // Force MASTERY: a clean fireball into a wizard already on the rim drives them off.
+    const rimDrive = (kind === 'fb' && by && by.forceCap && victim.nearEdge > 0.45) ? 1.4 : 1;
+    imp *= rimDrive;
     victim.kvx += nx * imp * light; victim.kvy += ny * imp * light;
     if (victim.dashT <= 0) victim.stagger = Math.max(victim.stagger, C.STAGGER);
     victim.hp -= dmg;
@@ -261,6 +268,61 @@ export class World {
     if (by === this.player || victim === this.player) addTrauma(0.16);
     if (kind === 'hook') sfx.hookHit(); else sfx.shove();
     if (victim.hp <= 0) this._die(victim, false);
+  }
+
+  // The Hook's payload: SWAP places with the victim. The caster trades their ground
+  // for the victim's — cast from the brink to drop a foe where you stood (then finish
+  // them), or cast while cornered to blink to their safer spot. A ward refuses it.
+  _hookSwap(caster, victim) {
+    if (!caster.alive || !victim.alive) return;
+    if (victim.ward > 0) {
+      victim.ward--;
+      shockwave(victim.x, victim.y, { color: '#9fd8ff', max: 46, dur: 0.3, width: 4 });
+      floatText(victim.x, victim.y - 28, 'WARDED', { color: '#9fd8ff', size: 15 });
+      sfx.ward();
+      return;
+    }
+    const cx = caster.x, cy = caster.y, vx = victim.x, vy = victim.y;
+    caster.x = vx; caster.y = vy;
+    victim.x = cx; victim.y = cy;
+    // clean snap — kill any residual slides so the swap reads as an instant blink
+    caster.kvx = 0; caster.kvy = 0; victim.kvx = 0; victim.kvy = 0;
+    // the victim lands where the caster stood; nudge them OUTWARD and freeze them a
+    // beat, so a hook cast from the rim sets up — or outright lands — the kill.
+    const od = dist(cx, cy, C.AX, C.AY) || 1;
+    const ox = (cx - C.AX) / od, oy = (cy - C.AY) / od;
+    const light = victim.heavy ? 1 : 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    victim.kvx += ox * 150 * light; victim.kvy += oy * 150 * light;
+    victim.stagger = Math.max(victim.stagger, C.STAGGER * 1.3);
+    victim.hp -= 3;
+    victim.lastHitBy = caster; victim.lastHitT = this.time;
+    victim.hitFlash = 0.09;
+    victim.squashA = Math.atan2(oy, ox); victim.squashT = 0.22;
+    // the caster blinks free of a stagger — reward the read
+    caster.stagger = 0; caster.dashT = Math.max(caster.dashT, 0.12);
+    // twin blink at both endpoints
+    shockwave(vx, vy, { color: '#ffffff', max: 34, dur: 0.26, width: 3 });
+    shockwave(cx, cy, { color: '#cfd6e4', max: 34, dur: 0.26, width: 3 });
+    burst(caster.x, caster.y, 12, { color: caster.color, speed: 200, life: 0.4, r: 2.4 });
+    burst(victim.x, victim.y, 12, { color: victim.color, speed: 200, life: 0.4, r: 2.4 });
+    floatText((cx + vx) / 2, (cy + vy) / 2 - 30, 'SWAP', { color: '#cfd6e4', size: 15 });
+    addTrauma(0.2); hitStop(0.07);
+    sfx.hookHit();
+    if (victim.hp <= 0) this._die(victim, false);
+  }
+
+  // Greatball MASTERY: a small radial shove around a fireball's impact point.
+  _fbSplash(x, y, owner, primary) {
+    const volat = this.has('volatile') ? 1.4 : 1;
+    shockwave(x, y, { color: '#ffd24a', max: 40, dur: 0.25, width: 3 });
+    for (const o of this.wizards) {
+      if (!o.alive || o === owner || o === primary) continue;
+      const d = dist(x, y, o.x, o.y);
+      if (d < 52) {
+        const a = angle(x, y, o.x, o.y);
+        this._hitWizard(o, owner, Math.cos(a), Math.sin(a), 150 * volat, 2, 'fb');
+      }
+    }
   }
 
   _die(w, inLava) {
@@ -337,7 +399,7 @@ export class World {
       if (w.casting) {
         w.casting.t -= dt;
         if (w.casting.t <= 0) {
-          this._spawnBolt(w, w.casting.ang, { imp: w.fbImpulse * (this.has('volatile') ? 1.4 : 1), dmg: w.fbDmg, kind: 'fb', r: w.fbRadius, speed: C.FB_SPEED });
+          this._spawnBolt(w, w.casting.ang, { imp: w.fbImpulse * (this.has('volatile') ? 1.4 : 1), dmg: w.fbDmg, kind: 'fb', r: w.fbRadius, speed: w.fbSpeed });
           sfx.cast();
           w.casting = null;
         }
@@ -457,13 +519,12 @@ export class World {
         if (dist(b.x, b.y, w.x, w.y) < b.r + C.WIZ_R) {
           const sp = Math.hypot(b.vx, b.vy) || 1;
           if (b.kind === 'hook') {
-            // the yank: pull the victim TOWARD the caster. Snap taut on connect.
-            const a = angle(w.x, w.y, b.owner.x, b.owner.y);
-            shockwave(w.x, w.y, { color: '#ffffff', max: 30, dur: 0.22, width: 3 });
-            burst(w.x, w.y, 8, { color: '#cfd6e4', dir: a, spread: 0.5, speed: 240, life: 0.3 });
-            this._hitWizard(w, b.owner, Math.cos(a), Math.sin(a), b.imp, b.dmg, 'hook');
+            // the latch: SWAP places with the victim. Trade ground in a blink.
+            this._hookSwap(b.owner, w);
           } else {
             this._hitWizard(w, b.owner, b.vx / sp, b.vy / sp, b.imp, b.dmg, b.kind);
+            // Greatball MASTERY: the fireball bursts on impact, shoving anyone alongside.
+            if (b.kind === 'fb' && b.owner && b.owner.greatCap) this._fbSplash(b.x, b.y, b.owner, w);
           }
           b.alive = false;
           break;
@@ -645,8 +706,12 @@ export class World {
       const aim = this._aimAt(w, t, C.FB_SPEED);
       const shotx = Math.cos(aim), shoty = Math.sin(aim);
       const alignment = shotx * outx + shoty * outy; // >0 = pushes toward lava
-      const p = alignment > 0.1 ? ai.killShot : 0.5;
-      if (Math.random() < p) this._fireball(w, aim + gauss() * ai.aimErr);
+      let p = alignment > 0.1 ? ai.killShot : 0.5;
+      // blood in the water: a target lingering on the rim gets pressured hard, with
+      // a steadier hand for the kill. Punishes a player who plays the edge too cosy.
+      const bloodAim = (t.nearEdge > 0.5 && alignment > 0) ? 0.7 : 1;
+      if (t.nearEdge > 0.35 && alignment > 0) p = Math.min(0.98, p + 0.3);
+      if (Math.random() < p) this._fireball(w, aim + gauss() * ai.aimErr * bloodAim);
     }
 
     // spells, contextually
@@ -659,9 +724,16 @@ export class World {
     if (ready('scatter') && td < 170) this._cast(w, 'scatter', { nx: Math.cos(this._aimAt(w, t, 380) + gauss() * ai.aimErr), ny: Math.sin(this._aimAt(w, t, 380) + gauss() * ai.aimErr) });
     if (ready('mote') && td > 130) this._cast(w, 'mote', { nx: Math.cos(ta), ny: Math.sin(ta) });
     if (ready('mine') && (ai.centerHug ? cd < this.arenaR * 0.4 : td < 130)) this._cast(w, 'mine');
-    if (ready('hook') && td > 100 && td < 240) {
-      const a = this._aimAt(w, t, 560) + gauss() * ai.aimErr * 0.8;
-      this._cast(w, 'hook', { nx: Math.cos(a), ny: Math.sin(a) });
+    if (ready('hook') && td > 70 && td < 260) {
+      // swap pays off when I'm nearer the brink than my target (I escape, they go
+      // out) — or when I'm in real danger. Wisp also hooks just to be unreadable.
+      const myMargin = this.arenaR - cd;
+      const tMargin = this.arenaR - dist(t.x, t.y, C.AX, C.AY);
+      const worthIt = myMargin < tMargin - 18 || myMargin < 55 || (ai.erratic && Math.random() < 0.5);
+      if (worthIt) {
+        const a = this._aimAt(w, t, 560) + gauss() * ai.aimErr * 0.8;
+        this._cast(w, 'hook', { nx: Math.cos(a), ny: Math.sin(a) });
+      }
     }
   }
 }

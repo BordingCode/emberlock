@@ -53,12 +53,16 @@ function playerCfg() {
   const offensive = o.actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
     color: Meta.robe || PLAYER_COLOR,
-    hpMax: C.HP + (o.utility === 'heart' ? 30 : 0),
+    hpMax: C.HP + (o.utility === 'heart' ? 20 : 0),
     speed: C.SPEED * (o.utility === 'boots' ? 1.12 : 1),
     fbImpulse: C.FB_IMPULSE * (1 + 0.15 * o.ranks.force) * (1 - C.OFFENSE_PENALTY * offensive),
     fbCd: C.FB_CD * Math.pow(0.85, o.ranks.quick),
-    fbRadius: C.FB_RADIUS * (1 + 0.3 * o.ranks.great),
+    fbRadius: C.FB_RADIUS * (1 + 0.25 * o.ranks.great),
     fbDmg: C.FB_DMG + 4 * o.ranks.great,
+    fbSpeed: C.FB_SPEED * (o.ranks.quick >= UPGRADES.quick.costs.length ? 1.22 : 1),
+    forceCap: o.ranks.force >= UPGRADES.force.costs.length,
+    greatCap: o.ranks.great >= UPGRADES.great.costs.length,
+    heavy: o.utility === 'heart',
     actives: o.actives,
     wardMax: o.utility === 'ward' ? 1 : 0,
   };
@@ -77,7 +81,9 @@ function shopItems() {
     const rank = o.ranks[key];
     if (rank < u.costs.length) {
       const cost = u.costs[rank];
-      items.push({ id: `up_${key}`, kind: 'upgrade', track: key, icon: u.icon, name: `${u.name} ${'I'.repeat(rank + 1)}`, desc: u.desc, cost, disabled: run.gold < cost });
+      const isFinal = rank + 1 === u.costs.length;
+      const desc = isFinal && u.cap ? `${u.desc}  —  ${u.cap}` : u.desc;
+      items.push({ id: `up_${key}`, kind: 'upgrade', track: key, icon: u.icon, name: `${u.name} ${'I'.repeat(rank + 1)}`, desc, cost, disabled: run.gold < cost });
     }
   }
   for (const s of spellPool()) {
@@ -145,8 +151,12 @@ function trialPlayerCfg(t) {
     speed: C.SPEED * (t.utility === 'boots' ? 1.12 : 1),
     fbImpulse: C.FB_IMPULSE * (1 + 0.15 * ranks.force) * (1 - C.OFFENSE_PENALTY * offensive) * (t.impulseMul || 1),
     fbCd: C.FB_CD * Math.pow(0.85, ranks.quick),
-    fbRadius: C.FB_RADIUS * (1 + 0.3 * ranks.great),
+    fbRadius: C.FB_RADIUS * (1 + 0.25 * ranks.great),
     fbDmg: C.FB_DMG + 4 * ranks.great,
+    fbSpeed: C.FB_SPEED * (ranks.quick >= UPGRADES.quick.costs.length ? 1.22 : 1),
+    forceCap: ranks.force >= UPGRADES.force.costs.length,
+    greatCap: ranks.great >= UPGRADES.great.costs.length,
+    heavy: t.utility === 'heart',
     actives,
     wardMax: t.utility === 'ward' ? 1 : 0,
   };

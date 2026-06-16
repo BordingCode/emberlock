@@ -62,8 +62,9 @@ export const SPELLS = {
     desc: 'Drop a charge at your feet. Detonates with a mighty shove.',
   },
   hook: {
-    id: 'hook', kind: 'active', name: 'Hook', icon: '⌁', cost: 12, cd: 8, offensive: true, locked: true,
-    desc: 'Yank a foe TOWARD you — then shove them past you into the fire.',
+    id: 'hook', kind: 'active', name: 'Hook', icon: '⌁', cost: 12, cd: 7.5, offensive: false, offenseWeight: 0.5, locked: true,
+    desc: 'Latch a rival and SWAP places. Trade your safe ground for their brink — escape a shove, or set up the kill.',
+    aiDesc: 'swap',
   },
   ward: {
     id: 'ward', kind: 'utility', name: 'Ward', icon: '◍', cost: 7, locked: true,
@@ -74,16 +75,19 @@ export const SPELLS = {
     desc: '+12% move speed. Position is everything.',
   },
   heart: {
-    id: 'heart', kind: 'utility', name: 'Heartstone', icon: '♥', cost: 8,
-    desc: '+30 max HP. (The lava does not care much.)',
+    id: 'heart', kind: 'utility', name: 'Heartstone', icon: '♥', cost: 7,
+    desc: '+20 max HP, and a heart of stone — you never fly farther for being wounded. Stand your ground.',
   },
 };
 
 // fireball upgrade tracks: levels with prices
 export const UPGRADES = {
-  force: { id: 'force', name: 'Force', icon: '✸', costs: [6, 10, 16], desc: '+15% fireball shove per rank.' },
-  quick: { id: 'quick', name: 'Quickcast', icon: '⚡', costs: [7, 12], desc: '−15% fireball cooldown per rank.' },
-  great: { id: 'great', name: 'Greatball', icon: '●', costs: [6, 10], desc: 'Bigger fireball, +4 damage per rank.' },
+  force: { id: 'force', name: 'Force', icon: '✸', costs: [6, 10, 16], desc: '+15% fireball shove per rank.',
+    cap: 'MASTERY: shots that strike a wizard on the rim drive 40% harder — finish them.' },
+  quick: { id: 'quick', name: 'Quickcast', icon: '⚡', costs: [7, 12, 18], desc: '−15% fireball cooldown per rank.',
+    cap: 'MASTERY: your bolts fly faster — far harder to dodge.' },
+  great: { id: 'great', name: 'Greatball', icon: '●', costs: [6, 10, 16], desc: 'Bigger fireball, +4 damage per rank.',
+    cap: 'MASTERY: impacts burst — a splash shove catches wizards beside the hit.' },
 };
 
 // ---- Rivals -----------------------------------------------------------------
