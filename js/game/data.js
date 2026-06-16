@@ -50,8 +50,12 @@ export const SPELLS = {
     desc: 'Fan of 3 fireballs, lighter shove each. Punishes crowded ground.',
   },
   mote: {
-    id: 'mote', kind: 'active', name: 'Homing Mote', icon: '◉', cost: 8, cd: 7, offensive: true,
-    desc: 'Slow seeking orb with a gentle push. Herds foes toward the edge.',
+    id: 'mote', kind: 'active', name: 'Homing Mote', icon: '◉', cost: 8, cd: 6.5, offensive: true,
+    desc: 'A seeking orb that chases a foe and herds them toward the edge. Hard to shake.',
+  },
+  backdraft: {
+    id: 'backdraft', kind: 'active', name: 'Backdraft', icon: '≫', cost: 9, cd: 5.5, offensive: true,
+    desc: 'An instant fan of force in your aim — no projectile, just a hard shove. Short range; line a foe up with the brink and blast.',
   },
   nova: {
     id: 'nova', kind: 'active', name: 'Repel Nova', icon: '✺', cost: 10, cd: 8, offensive: true,
@@ -78,6 +82,10 @@ export const SPELLS = {
     id: 'heart', kind: 'utility', name: 'Heartstone', icon: '♥', cost: 7,
     desc: '+20 max HP, and a heart of stone — you never fly farther for being wounded. Stand your ground.',
   },
+  lodestone: {
+    id: 'lodestone', kind: 'utility', name: 'Lodestone', icon: '⊗', cost: 7,
+    desc: '−22% knockback taken. Their shoves move you less — own your lane and never get flung off it.',
+  },
 };
 
 // fireball upgrade tracks: levels with prices
@@ -88,6 +96,8 @@ export const UPGRADES = {
     cap: 'MASTERY: your bolts fly faster — far harder to dodge.' },
   great: { id: 'great', name: 'Greatball', icon: '●', costs: [6, 10, 16], desc: 'Bigger fireball, +4 damage per rank.',
     cap: 'MASTERY: impacts burst — a splash shove catches wizards beside the hit.' },
+  brand: { id: 'brand', name: 'Brand', icon: '✦', costs: [7, 13], desc: 'Your fireballs mark a foe — they fly farther from every shove for a few seconds.',
+    cap: 'MASTERY: the brand bites deeper (+40% shove taken) and lingers longer.' },
 };
 
 // ---- Rivals -----------------------------------------------------------------

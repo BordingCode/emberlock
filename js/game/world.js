@@ -54,6 +54,7 @@ export class World {
       fbRadius: p.fbRadius, fbDmg: p.fbDmg, actives: p.actives, wardMax: p.wardMax,
       fbSpeed: p.fbSpeed ?? C.FB_SPEED,
       forceCap: !!p.forceCap, greatCap: !!p.greatCap, heavy: !!p.heavy,
+      brandRank: p.brandRank || 0, kbResist: p.kbResist || 0,
     });
     this.wizards.push(this.player);
     const tier = AI_TIERS[clamp(this.cfg.aiTier, 0, AI_TIERS.length - 1)];
@@ -88,6 +89,7 @@ export class World {
       x: 0, y: 0, mvx: 0, mvy: 0, kvx: 0, kvy: 0,
       hp: o.hpMax, hpMax: o.hpMax, alive: true, deathT: -1, lavaDeath: false,
       fbSpeed: C.FB_SPEED, forceCap: false, greatCap: false, heavy: false,
+      brandRank: 0, kbResist: 0, brandT: 0, brandMul: 1,
       stagger: 0, dashT: 0, burn: 0, hitFlash: 0, nearEdge: 0,
       facing: 1, bob: Math.random() * TAU,
       fireCd: 0, casting: null, cds: {}, ward: 0, wardMax: o.wardMax || 0,
@@ -190,7 +192,7 @@ export class World {
         sfx.cast(); setCd(); return true;
       }
       case 'mote': {
-        this._spawnBolt(w, ang, { imp: 240 * volat, dmg: 5, kind: 'mote', r: 8, speed: 150, homing: true, turn: 2.2, life: 6 });
+        this._spawnBolt(w, ang, { imp: 300 * volat, dmg: 5, kind: 'mote', r: 8, speed: 168, homing: true, turn: 2.7, life: 6 });
         sfx.cast(); setCd(); return true;
       }
       case 'nova': {
@@ -215,6 +217,24 @@ export class World {
       case 'hook': {
         this._spawnBolt(w, ang, { imp: 430, dmg: 4, kind: 'hook', r: 7, speed: 560, life: 0.45 });
         sfx.hook(); setCd(); return true;
+      }
+      case 'backdraft': {
+        // an instant fan of force in the aim direction — no projectile, just a shove
+        const range = 122, half = 0.72; // ~82° cone
+        const dx = Math.cos(ang), dy = Math.sin(ang);
+        burst(w.x + dx * 14, w.y + dy * 14, 16, { color: '#ffae5a', dir: ang, spread: half, speed: 300, life: 0.4, r: 2.6 });
+        shockwave(w.x + dx * 38, w.y + dy * 38, { color: '#ffd24a', max: 92, dur: 0.3, width: 5 });
+        addTrauma(0.2); sfx.nova();
+        for (const o of this.wizards) {
+          if (o === w || !o.alive) continue;
+          const d = dist(w.x, w.y, o.x, o.y);
+          if (d > range) continue;
+          const a = angle(w.x, w.y, o.x, o.y);
+          const da = Math.abs(((a - ang + Math.PI * 3) % TAU) - Math.PI);
+          if (da > half) continue;
+          this._hitWizard(o, w, Math.cos(a), Math.sin(a), 470 * volat * (1 - d / range * 0.5), 6, 'backdraft');
+        }
+        setCd(); return true;
       }
     }
     return false;
@@ -252,11 +272,21 @@ export class World {
     // Warlock's signature rule: the wounded fly farther. Damage makes you LIGHT —
     // up to +50% knockback at the brink of death. Blood in the water.
     // A Heartstone heart stays HEAVY — it never flies farther for being wounded.
-    const light = victim.heavy ? 1 : 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    const wounded = victim.heavy ? 1 : 1 + (1 - clamp(victim.hp / victim.hpMax, 0, 1)) * 0.5;
+    // Brand: a marked foe flies farther from EVERY shove while the mark burns.
+    const branded = victim.brandT > 0 ? victim.brandMul : 1;
+    const light = wounded * branded;
     // Force MASTERY: a clean fireball into a wizard already on the rim drives them off.
     const rimDrive = (kind === 'fb' && by && by.forceCap && victim.nearEdge > 0.45) ? 1.4 : 1;
-    imp *= rimDrive;
+    // Lodestone: the victim resists knockback — their shoves move them less.
+    const resist = victim.kbResist ? (1 - victim.kbResist) : 1;
+    imp *= rimDrive * resist;
     victim.kvx += nx * imp * light; victim.kvy += ny * imp * light;
+    // Brand track: the attacker's fireball leaves a fresh mark on the victim.
+    if (kind === 'fb' && by && by.brandRank > 0) {
+      victim.brandT = by.brandRank >= 2 ? 3.4 : 2.6;
+      victim.brandMul = by.brandRank >= 2 ? 1.4 : 1.22;
+    }
     if (victim.dashT <= 0) victim.stagger = Math.max(victim.stagger, C.STAGGER);
     victim.hp -= dmg;
     victim.hitFlash = 0.09;
@@ -392,6 +422,7 @@ export class World {
       w.dashT = Math.max(0, w.dashT - dt);
       w.hitFlash = Math.max(0, w.hitFlash - dt);
       if (w.squashT) w.squashT = Math.max(0, w.squashT - dt);
+      if (w.brandT > 0) w.brandT = Math.max(0, w.brandT - dt);
       w.fireCd = Math.max(0, w.fireCd - dt);
       for (const k in w.cds) w.cds[k] = Math.max(0, w.cds[k] - dt);
 
@@ -634,17 +665,34 @@ export class World {
     const rangeErr = (td - ai.range) / ai.range;
     fx += Math.cos(ta) * clamp(rangeErr, -1, 1) * ai.w.seek * ai.aggro;
     fy += Math.sin(ta) * clamp(rangeErr, -1, 1) * ai.w.seek * ai.aggro;
-    fx += Math.cos(ta + Math.PI / 2) * ai.strafe * 0.55;
-    fy += Math.sin(ta + Math.PI / 2) * ai.strafe * 0.55;
-
-    // kill-angle: stand on the centre side of the target so hits shove them OUT
+    // contest the INSIDE: is the target between me and the centre? Then I'm flanked —
+    // my shots push them toward safety while theirs push me out. Fight to flip it.
+    // But in a crowd, soften the undercut: one rival contesting is a fair duel; two
+    // both undercutting is an unfair pincer. Numbers already pressure the player.
+    const aliveCount = this.wizards.reduce((n, o) => n + (o.alive ? 1 : 0), 0);
+    const groupScale = aliveCount > 2 ? 0.55 : 1;
     const tcd = dist(t.x, t.y, C.AX, C.AY);
     const outx = (t.x - C.AX) / (tcd || 1), outy = (t.y - C.AY) / (tcd || 1);
-    const wantX = t.x - outx * ai.range * 0.9, wantY = t.y - outy * ai.range * 0.9;
+    const amOutside = cd > tcd + 6;
+    // strafe — but when flanked, lock the circle to the side that GAINS the centre
+    let strafeDir = ai.strafe;
+    if (amOutside) {
+      const tnx = Math.cos(ta + Math.PI / 2), tny = Math.sin(ta + Math.PI / 2);
+      strafeDir = (tnx * toCx + tny * toCy) >= 0 ? 1 : -1;
+    }
+    const strafeMag = amOutside ? 0.55 + 0.19 * groupScale : 0.55;
+    fx += Math.cos(ta + Math.PI / 2) * strafeDir * strafeMag;
+    fy += Math.sin(ta + Math.PI / 2) * strafeDir * strafeMag;
+
+    // kill-angle: fight for the centre side of the target so my hits shove them OUT.
+    // When flanked, undercut to the inside (closer than range) instead of orbiting it.
+    const wantDist = ai.range * (amOutside ? 0.72 : 0.9);
+    const wantX = t.x - outx * wantDist, wantY = t.y - outy * wantDist;
     const wd = dist(w.x, w.y, wantX, wantY);
-    if (wd > 20) {
-      fx += ((wantX - w.x) / wd) * 0.6 * ai.w.angle;
-      fy += ((wantY - w.y) / wd) * 0.6 * ai.w.angle;
+    if (wd > 14) {
+      const push = (amOutside ? (0.7 + 0.58 * groupScale) : 0.7) * ai.w.angle;
+      fx += ((wantX - w.x) / wd) * push;
+      fy += ((wantY - w.y) / wd) * push;
     }
 
     // dodge incoming bolts (reaction-delayed — beatable on purpose)

@@ -42,7 +42,7 @@ let musicOn = false;
 function freshRun(tier) {
   return {
     tier, matchIdx: 0, gold: 0, embers: [], risk: false,
-    owned: { actives: [], utility: null, ranks: { force: 0, quick: 0, great: 0 } },
+    owned: { actives: [], utility: null, ranks: { force: 0, quick: 0, great: 0, brand: 0 } },
     matchesWon: 0, shoves: 0, playerWins: 0, rivalWins: 0,
   };
 }
@@ -63,6 +63,8 @@ function playerCfg() {
     forceCap: o.ranks.force >= UPGRADES.force.costs.length,
     greatCap: o.ranks.great >= UPGRADES.great.costs.length,
     heavy: o.utility === 'heart',
+    brandRank: o.ranks.brand || 0,
+    kbResist: o.utility === 'lodestone' ? 0.22 : 0,
     actives: o.actives,
     wardMax: o.utility === 'ward' ? 1 : 0,
   };
@@ -76,7 +78,7 @@ function spellPool() {
 function shopItems() {
   const o = run.owned;
   const items = [];
-  for (const key of ['force', 'quick', 'great']) {
+  for (const key of ['force', 'quick', 'great', 'brand']) {
     const u = UPGRADES[key];
     const rank = o.ranks[key];
     if (rank < u.costs.length) {
@@ -142,7 +144,7 @@ function gotoTrials() {
 
 // ---- trials: one crafted match, fixed rules, reward pays once ----------------------
 function trialPlayerCfg(t) {
-  const ranks = { force: 0, quick: 0, great: 0, ...(t.ranks || {}) };
+  const ranks = { force: 0, quick: 0, great: 0, brand: 0, ...(t.ranks || {}) };
   const actives = t.actives || [];
   const offensive = actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
@@ -157,6 +159,8 @@ function trialPlayerCfg(t) {
     forceCap: ranks.force >= UPGRADES.force.costs.length,
     greatCap: ranks.great >= UPGRADES.great.costs.length,
     heavy: t.utility === 'heart',
+    brandRank: ranks.brand || 0,
+    kbResist: t.utility === 'lodestone' ? 0.22 : 0,
     actives,
     wardMax: t.utility === 'ward' ? 1 : 0,
   };
