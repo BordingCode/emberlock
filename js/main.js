@@ -6,7 +6,7 @@ import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
 import { FX, updateFX, clearFX, floatText, burst } from './engine/fx.js';
 import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity, setMusicKey } from './audio.js';
-import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR, barkFor } from './game/data.js';
+import { C, SPELLS, UPGRADES, RELICS, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR, barkFor } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
 import { Renderer } from './game/render.js';
@@ -42,9 +42,18 @@ let musicOn = false;
 function freshRun(tier) {
   return {
     tier, matchIdx: 0, gold: 0, embers: [], risk: false,
-    owned: { actives: [], utility: null, ranks: { force: 0, quick: 0, great: 0, brand: 0 } },
+    owned: { actives: [], utility: null, relics: [], ranks: { force: 0, quick: 0, great: 0, brand: 0 } },
     matchesWon: 0, shoves: 0, playerWins: 0, rivalWins: 0,
   };
+}
+
+// turn an owned-relic id list into the { flagName: true } object the sim reads.
+// Pure flags — they never touch fbImpulse here (that would break the offence
+// penalty); the sim applies each relic's effect CONDITIONALLY at its own hook.
+function relicFlags(ids) {
+  const out = {};
+  for (const id of ids || []) { const r = RELICS[id]; if (r) out[r.flag] = true; }
+  return out;
 }
 
 function playerCfg() {
@@ -52,6 +61,7 @@ function playerCfg() {
   // offence "weight": full 1 per offensive spell; Surge etc. carry a partial weight
   const offensive = o.actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
+    relics: relicFlags(o.relics),
     color: Meta.robe || PLAYER_COLOR,
     hpMax: C.HP + (o.utility === 'heart' ? 20 : 0),
     speed: C.SPEED * (o.utility === 'boots' ? 1.12 : 1),
@@ -103,13 +113,30 @@ function shopItems() {
   return items;
 }
 
+// relics offered (not bought) in the draft — each one not already held this run.
+// They make the draft an IDENTITY choice: HOW your shove behaves, not +X%.
+function relicOffers() {
+  const have = run.owned.relics;
+  return Object.values(RELICS)
+    .filter((r) => !have.includes(r.id))
+    .map((r) => ({ id: r.id, kind: 'relic', icon: r.icon, name: r.name, desc: r.desc, sub: 'RELIC — passive, whole run', free: true }));
+}
+
 function draftOptions() {
   const pool = shopItems().map((it) => ({ ...it, cost: null, disabled: false, free: true }))
     .filter((it) => !(it.sub === 'SPELL SLOTS FULL' || it.sub === 'TRINKET SLOT FULL'));
-  // shuffle, take 3; pad with gold if thin
+  // fold the run-long relics into the same pool — at least one relic shows when any
+  // remain, so the identity layer is always part of the choice, not buried by luck.
+  const relics = relicOffers();
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  const opts = pool.slice(0, 3);
+  for (let i = relics.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [relics[i], relics[j]] = [relics[j], relics[i]]; }
+  const opts = [];
+  if (relics.length) opts.push(relics[0]);          // guarantee a relic when one is left
+  for (const it of pool) { if (opts.length >= 3) break; opts.push(it); }
+  for (const it of relics.slice(1)) { if (opts.length >= 3) break; opts.push(it); }
   while (opts.length < 3) opts.push({ id: 'gold', kind: 'gold', icon: '◆', name: 'Purse of Gold', desc: '+8 gold for the Forge.', free: true });
+  // shuffle so the guaranteed relic isn't always card #1
+  for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
   return opts;
 }
 
@@ -118,6 +145,7 @@ function grantItem(it) {
   if (it.kind === 'upgrade') o.ranks[it.track]++;
   else if (it.kind === 'active') o.actives.push(it.id);
   else if (it.kind === 'utility') o.utility = it.id;
+  else if (it.kind === 'relic') { if (!o.relics.includes(it.id)) o.relics.push(it.id); }
   else if (it.kind === 'gold') run.gold += 8;
 }
 
@@ -148,6 +176,7 @@ function trialPlayerCfg(t) {
   const actives = t.actives || [];
   const offensive = actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
+    relics: relicFlags(t.relics),
     color: Meta.robe || PLAYER_COLOR,
     hpMax: C.HP + (t.utility === 'heart' ? 30 : 0),
     speed: C.SPEED * (t.utility === 'boots' ? 1.12 : 1),

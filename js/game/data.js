@@ -100,6 +100,52 @@ export const UPGRADES = {
     cap: 'MASTERY: the brand bites deeper (+40% shove taken) and lingers longer.' },
 };
 
+// ---- Relics (passive, run-long, OFFERED not bought) -------------------------
+// Each relic sets ONE interaction flag the sim reads at a hook it ALREADY has
+// (_hitWizard / _die / the edge-catch + lava + cast blocks in update). They change
+// HOW the shove behaves, not the base numbers — the draft becomes an IDENTITY
+// choice, not a stat top-up. Pure data + flags; no engine path is rewritten.
+//
+// IMPORTANT — they must NOT undo Warlock's spell-penalty rule (more offence -> a
+// slightly weaker BASE shove). None of these touch fbImpulse at config time; the
+// few that boost a shove do it CONDITIONALLY at hit-time (a kill streak, a foe on
+// the rim, after eating a hit) — situational, never a flat base buff. The feel
+// triad (impulse 430 / stagger 0.27 / decel 900) is untouched.
+export const RELICS = {
+  executioner: {
+    id: 'executioner', name: 'Executioner', icon: '⌖', flag: 'refundOnKill',
+    desc: 'A shove that KILLS instantly refunds your fireball — cast again at once. Reward the finish.',
+  },
+  bulwark: {
+    id: 'bulwark', name: 'Bulwark', icon: '⛨', flag: 'castGuard',
+    desc: 'While you charge a fireball you take NO knockback. Plant your feet, commit to the windup.',
+  },
+  searing: {
+    id: 'searing', name: 'Searing Brand', icon: '✦', flag: 'brandBurn',
+    desc: 'Branded foes also BURN 50% faster in the lava. Mark them, then shove them in.',
+  },
+  brinkborn: {
+    id: 'brinkborn', name: 'Brinkborn', icon: '⟡', flag: 'edgeHeal',
+    desc: 'Surviving a shove at the very brink HEALS you +14. Live on the edge — literally.',
+  },
+  avalanche: {
+    id: 'avalanche', name: 'Avalanche', icon: '⛰', flag: 'momentum',
+    desc: 'Each foe you shove into the fire makes your shove +10% harder — for the rest of the round. Snowball it.',
+  },
+  tempo: {
+    id: 'tempo', name: 'Quickening', icon: '➤', flag: 'killHaste',
+    desc: 'A kill grants +18% move speed for 3s. Chain the next victim while you’re flying.',
+  },
+  lodestar: {
+    id: 'lodestar', name: 'Lodestar', icon: '◎', flag: 'rimDrive',
+    desc: 'Your fireballs into a foe with their back to the rim drive +28% harder. Set them up, then close it out.',
+  },
+  riposte: {
+    id: 'riposte', name: 'Riposte', icon: '↺', flag: 'riposte',
+    desc: 'After a rival’s shove staggers you, your next fireball (within 2s) flies +35% harder. Eat the hit, answer it.',
+  },
+};
+
 // ---- Rivals -----------------------------------------------------------------
 // One shared steering+FSM; each rival is a row of weights + loadout + colour.
 // weights: seek (engage), flee (edge fear), dodge (bolt evade), angle (kill-angle hunger)

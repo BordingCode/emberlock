@@ -55,6 +55,7 @@ export class World {
       fbSpeed: p.fbSpeed ?? C.FB_SPEED,
       forceCap: !!p.forceCap, greatCap: !!p.greatCap, heavy: !!p.heavy,
       brandRank: p.brandRank || 0, kbResist: p.kbResist || 0,
+      relics: p.relics || {},
     });
     this.wizards.push(this.player);
     const tier = AI_TIERS[clamp(this.cfg.aiTier, 0, AI_TIERS.length - 1)];
@@ -90,6 +91,7 @@ export class World {
       hp: o.hpMax, hpMax: o.hpMax, alive: true, deathT: -1, lavaDeath: false,
       fbSpeed: C.FB_SPEED, forceCap: false, greatCap: false, heavy: false,
       brandRank: 0, kbResist: 0, brandT: 0, brandMul: 1,
+      relics: {}, momentum: 0, hasteT: 0, riposteT: 0,
       stagger: 0, dashT: 0, burn: 0, hitFlash: 0, nearEdge: 0,
       facing: 1, bob: Math.random() * TAU,
       fireCd: 0, casting: null, cds: {}, ward: 0, wardMax: o.wardMax || 0,
@@ -118,6 +120,7 @@ export class World {
       w.kvx = 0; w.kvy = 0; w.mvx = 0; w.mvy = 0;
       w.stagger = 0; w.dashT = 0; w.burn = 0; w.hitFlash = 0;
       w.fireCd = 0; w.casting = null; w.cds = {}; w.ward = w.wardMax;
+      w.momentum = 0; w.hasteT = 0; w.riposteT = 0; // relic state, per round
       w.lastHitBy = null; w.lastHitT = -99; w.deadOrder = -1;
       if (w.ai) { w.ai.target = null; w.ai.retarget = 0; }
     });
@@ -281,6 +284,20 @@ export class World {
     // Lodestone: the victim resists knockback — their shoves move them less.
     const resist = victim.kbResist ? (1 - victim.kbResist) : 1;
     imp *= rimDrive * resist;
+    // ---- attacker relics: CONDITIONAL shove boosts (never a flat base buff, so
+    // Warlock's offence penalty is untouched). All read by.relics, set at the draft.
+    if (by && by.relics) {
+      const R = by.relics;
+      // Avalanche: each kill THIS round compounds the shove (+10% each, capped +50%).
+      if (R.momentum && by.momentum) imp *= 1 + Math.min(by.momentum, 5) * 0.10;
+      // Lodestar: a fireball into a foe whose back is to the rim drives harder.
+      if (R.rimDrive && kind === 'fb' && victim.nearEdge > 0.3) imp *= 1.28;
+      // Riposte: the fireball that answers a shove you just ate flies harder.
+      if (R.riposte && kind === 'fb' && by.riposteT > 0) { imp *= 1.35; by.riposteT = 0; }
+    }
+    // Bulwark: while the VICTIM is charging a fireball they take no knockback —
+    // commit to the windup. (Damage and stagger still land; only the slide is denied.)
+    if (victim.relics && victim.relics.castGuard && victim.casting) imp = 0;
     victim.kvx += nx * imp * light; victim.kvy += ny * imp * light;
     // Brand track: the attacker's fireball leaves a fresh mark on the victim.
     if (kind === 'fb' && by && by.brandRank > 0) {
@@ -288,6 +305,10 @@ export class World {
       victim.brandMul = by.brandRank >= 2 ? 1.4 : 1.22;
     }
     if (victim.dashT <= 0) victim.stagger = Math.max(victim.stagger, C.STAGGER);
+    // Riposte: eating a rival's shove arms your next fireball for a short window.
+    if (victim.relics && victim.relics.riposte && by && by !== victim && victim.stagger > 0) {
+      victim.riposteT = 2;
+    }
     victim.hp -= dmg;
     victim.hitFlash = 0.09;
     victim.lastHitBy = by; victim.lastHitT = this.time;
@@ -360,6 +381,15 @@ export class World {
     w.alive = false; w.deathT = 0; w.lavaDeath = inLava;
     w.deadOrder = this.deadCount++;
     const killer = (this.time - w.lastHitT < 3) ? w.lastHitBy : null;
+    // ---- killer relics: aggression rewards (all read killer.relics, set at draft).
+    // A "kill by shove" = the killer last touched the victim recently (the credit
+    // window above). Lava deaths and shove-to-zero both qualify.
+    if (killer && killer.alive && killer !== w && killer.relics) {
+      const R = killer.relics;
+      if (R.refundOnKill) killer.fireCd = 0;             // Executioner: cast again at once
+      if (R.killHaste) killer.hasteT = 3;                // Quickening: +move speed, 3s
+      if (R.momentum) killer.momentum = (killer.momentum || 0) + 1; // Avalanche: snowball
+    }
     if (inLava) {
       // the money moment: a directional geyser where they fell, not a symmetric puff
       const oa = angle(C.AX, C.AY, w.x, w.y); // outward from the island's heart
@@ -423,6 +453,8 @@ export class World {
       w.hitFlash = Math.max(0, w.hitFlash - dt);
       if (w.squashT) w.squashT = Math.max(0, w.squashT - dt);
       if (w.brandT > 0) w.brandT = Math.max(0, w.brandT - dt);
+      if (w.hasteT > 0) w.hasteT = Math.max(0, w.hasteT - dt);   // Quickening relic
+      if (w.riposteT > 0) w.riposteT = Math.max(0, w.riposteT - dt); // Riposte relic
       w.fireCd = Math.max(0, w.fireCd - dt);
       for (const k in w.cds) w.cds[k] = Math.max(0, w.cds[k] - dt);
 
@@ -466,7 +498,10 @@ export class World {
         if (pd < 13 + C.WIZ_R * 0.4) inLava = true;
       }
       if (inLava) {
-        const dps = C.LAVA_DPS * (this.has('glass') ? 2 : 1);
+        // Searing Brand (player relic): a BRANDED foe burns 50% faster in the lava.
+        // Brand x lava synergy — only applies to foes the player can have marked.
+        const sear = (!w.isPlayer && w.brandT > 0 && this.player.relics && this.player.relics.brandBurn) ? 1.5 : 1;
+        const dps = C.LAVA_DPS * (this.has('glass') ? 2 : 1) * sear;
         w.hp -= dps * dt;
         w.burn = Math.min(1, w.burn + dt * 3);
         if (Math.random() < dt * 22) burst(w.x, w.y + 6, 2, { color: '#ff8a1e', speed: 90, life: 0.45, grav: -240, r: 2.2 });
@@ -487,6 +522,11 @@ export class World {
             shockwave(w.x, w.y, { color: '#9fd8ff', max: 50, dur: 0.35, width: 4 });
             burst(w.x, w.y + 8, 8, { color: '#9fd8ff', speed: 120, life: 0.4, grav: -120 });
             sfx.edgeCatch();
+            // Brinkborn: surviving the brink heals you. Reward living on the edge.
+            if (w.relics && w.relics.edgeHeal) {
+              w.hp = Math.min(w.hpMax, w.hp + 14);
+              floatText(w.x, w.y - 30, '+14', { color: '#9fffd0', size: 16 });
+            }
             this.emit('edgeCatch', {});
           }
         }
@@ -618,10 +658,11 @@ export class World {
 
   _playerStep(dt, intent) {
     const w = this.player;
-    // movement from the stick
+    // movement from the stick (Quickening relic: a fresh kill briefly hastens you)
     const j = intent.joy;
-    w.mvx = j.nx * j.mag * w.speed;
-    w.mvy = j.ny * j.mag * w.speed;
+    const spd = w.speed * (w.hasteT > 0 ? 1.18 : 1);
+    w.mvx = j.nx * j.mag * spd;
+    w.mvy = j.ny * j.mag * spd;
     // buffered fire
     if (this.fireBuffer > 0) {
       this.fireBuffer -= dt;
