@@ -127,14 +127,15 @@ export function renderEmberPick(offers, riskPool, cb) {
 }
 
 // ---- draft (before each match): pick 1 of 3, free ----------------------------------
-export function renderDraft(matchIdx, lineup, options, cb) {
+export function renderDraft(matchIdx, lineup, options, cb, taunt) {
   const s = $('#scr-draft');
   s.innerHTML = '';
   const main = RIVALS[lineup[0]];
   s.append(el('h2', 'h', `MATCH ${matchIdx + 1} OF 5`));
   const foes = lineup.map((r) => `<b style="color:${RIVALS[r].color}">${RIVALS[r].name} ${RIVALS[r].title}</b>`).join(' & ');
   s.append(el('p', 'sub', `You face ${foes}.`));
-  s.append(el('p', 'taunt', `“${main.taunt}”`));
+  // an escalated bark (after repeated losses) replaces the default tactical taunt; else fall back
+  s.append(el('p', 'taunt', taunt || `“${main.taunt}”`));
   s.append(el('h3', 'h3', 'TAKE ONE GIFT'));
   const row = el('div', 'card-row');
   options.forEach((item) => row.append(card(item, (it) => { sfx.pick(); cb(it); })));
@@ -159,11 +160,12 @@ export function renderShop(gold, items, note, cb) {
 }
 
 // ---- match end (won a match, next looms) ---------------------------------------------
-export function renderMatchEnd(matchIdx, nextLineup, cb) {
+export function renderMatchEnd(matchIdx, nextLineup, cb, bark) {
   const s = $('#scr-matchend');
   s.innerHTML = '';
   s.append(el('h2', 'h win', 'MATCH WON'));
   s.append(el('p', 'sub', `+2 cinders banked. ${5 - matchIdx - 1} ${5 - matchIdx - 1 === 1 ? 'match' : 'matches'} stand between you and the Last Flame.`));
+  if (bark) s.append(el('p', 'taunt', bark));
   const go = el('button', 'btn btn-primary', 'ONWARD');
   go.onclick = () => cb();
   s.append(go);
@@ -178,6 +180,8 @@ export function renderRunEnd(win, stats, cb) {
   s.append(el('p', 'sub', win
     ? 'Every rival shoved into the fire. The island remembers your name.'
     : `Defeated in match ${stats.matchIdx + 1}. The lava keeps what it takes — no rematch, no mercy.`));
+  if (!win && stats.cause) s.append(el('p', 'lose-note', stats.cause));
+  if (stats.bark) s.append(el('p', 'taunt', stats.bark));
   const grid = el('div', 'end-stats');
   grid.append(el('div', '', `<b>${stats.shoves}</b> shoves`));
   grid.append(el('div', '', `<b>${stats.matchesWon}</b> matches won`));

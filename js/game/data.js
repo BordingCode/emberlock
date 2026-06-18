@@ -143,6 +143,35 @@ export const RIVALS = {
   },
 };
 
+// Escalating barks keyed by how often you've LOST to / BEATEN a rival.
+// `loss[n]` shows on the draft when this rival has ended your run n+ times before;
+// `firstWin` shows on the death screen of OTHER runs once you've beaten them.
+// Pure data — read by barkFor() against Meta.lossesTo / Meta.winsOver counters.
+export const RIVAL_BARKS = {
+  pyra:   { loss: ['Pyra grins. “Back already? You learn slow.”', 'Pyra circles. “Third time. I could do this in my sleep.”'],
+            firstWin: 'Pyra spits embers. “Lucky. It won’t hold.”' },
+  cinder: { loss: ['Old Cinder doesn’t look up. “The centre is mine. Still.”', 'Old Cinder sighs. “You keep walking into the same fire.”'],
+            firstWin: 'Old Cinder nods, slow. “Patience. You found some at last.”' },
+  gale:   { loss: ['Gale laughs. “You can’t corner the wind, ember.”', 'Gale is already gone. “Untouched. As ever.”'],
+            firstWin: 'Gale stops moving — just once. “…Touched. Hm.”' },
+  magnus: { loss: ['Magnus does not move. “You push. The mountain stays.”', 'Magnus, unmoved. “Again. And again the ground keeps you.”'],
+            firstWin: 'Magnus shifts his weight. “So the mountain can be moved.”' },
+  wisp:   { loss: ['Wisp flickers. “You never saw it coming. You never do.”', 'Wisp is everywhere and nowhere. “Read me yet? No.”'],
+            firstWin: 'Wisp goes still, readable for a heartbeat. “…Oh. You read me.”' },
+  ash:    { loss: ['Ash, the Last Flame: “Everything they know, I taught. Including how you fall.”', 'Ash does not gloat. “Come back when the fire is yours.”'],
+            firstWin: 'Ash bows his head. “The student becomes the flame. Take the island.”' },
+};
+
+// Pick the bark for a rival given a counter (0-based tier), clamped to the list.
+export function barkFor(rivalId, kind, n) {
+  const b = RIVAL_BARKS[rivalId];
+  if (!b) return null;
+  if (kind === 'firstWin') return b.firstWin || null;
+  const arr = b.loss || [];
+  if (!arr.length || n <= 0) return null;
+  return arr[Math.min(n, arr.length) - 1];
+}
+
 // ---- Arenas: visual biomes as data rows -------------------------------------
 // Same draw code, different colours — each match reads as a different PLACE.
 // void: bg gradient top/mid/bot. lava: hot->cool stops. island: top/mid/edge.

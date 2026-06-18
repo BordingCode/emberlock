@@ -13,6 +13,8 @@ const DEFAULTS = {
   trialsDone: [],          // trial ids beaten (rewards pay once)
   bestMatch: 0,            // furthest match reached (1-based, 6 = cleared)
   runs: 0, clears: 0, shoves: 0,
+  lossesTo: {},            // rivalId -> times this rival's lineup ended a run
+  winsOver: {},            // rivalId -> times beaten in a match
   sfx: true, music: true, reducedMotion: false,
   coached: false,          // first-run coach toasts shown?
 };

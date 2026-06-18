@@ -6,7 +6,7 @@ import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
 import { FX, updateFX, clearFX, floatText, burst } from './engine/fx.js';
 import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity, setMusicKey } from './audio.js';
-import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR } from './game/data.js';
+import { C, SPELLS, UPGRADES, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR, barkFor } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
 import { Renderer } from './game/render.js';
@@ -247,10 +247,13 @@ function lineupFor(matchIdx) {
 }
 
 function gotoDraft() {
+  const mainId = GAUNTLET[run.matchIdx].rivals[0];
+  // after repeated losses to this rival, their draft taunt sharpens
+  const taunt = barkFor(mainId, 'loss', Meta.lossesTo[mainId] || 0);
   renderDraft(run.matchIdx, lineupFor(run.matchIdx), draftOptions(), (item) => {
     grantItem(item);
     startMatch();
-  });
+  }, taunt);
 }
 
 function startMatch() {
@@ -324,7 +327,19 @@ function onWorldEvent(type, data) {
         floatText(victim.x, victim.y - 30, `+${C.GOLD_KILL}◆`, { color: '#ffd24a', size: 17 });
       }
     }
-    if (victim.isPlayer) sfx.hurt();
+    if (victim.isPlayer) {
+      sfx.hurt();
+      // remember HOW the run is about to end, so the death screen can say why
+      if (run) {
+        run.lastDeath = {
+          lava,
+          side: victim.y < C.AY ? 'north' : 'south',
+          killer: killer && !killer.isPlayer ? killer.name : null,
+          roundsLeft: Math.max(0, C.ROUND_TARGET - run.rivalWins - 1),
+          atMatchPoint: run.rivalWins >= C.ROUND_TARGET - 1,
+        };
+      }
+    }
     return;
   }
   if (type === 'roundOver') {
@@ -396,17 +411,38 @@ function startRoundFresh() {
 }
 
 function matchWon() {
+  const mainId = GAUNTLET[run.matchIdx].rivals[0];
+  // first time ever beating this rival? earn their "you finally beat me" line
+  const firstWin = !(Meta.winsOver[mainId] > 0);
+  // credit a win over each rival just beaten (drives their "you finally beat me" bark)
+  for (const id of GAUNTLET[run.matchIdx].rivals) Meta.winsOver[id] = (Meta.winsOver[id] || 0) + 1;
   run.matchesWon++;
   run.matchIdx++;
   Meta.cinders += 2;
   Meta.bestMatch = Math.max(Meta.bestMatch, run.matchIdx);
   saveMeta();
-  if (run.matchIdx >= C.GAUNTLET_LEN) return runOver(true); // the clear gets its own fanfare
+  const bark = firstWin ? barkFor(mainId, 'firstWin') : null;
+  if (run.matchIdx >= C.GAUNTLET_LEN) return runOver(true, bark); // the clear gets its own fanfare
   sfx.matchWin();
-  renderMatchEnd(run.matchIdx - 1, lineupFor(run.matchIdx), gotoDraft);
+  renderMatchEnd(run.matchIdx - 1, lineupFor(run.matchIdx), gotoDraft, bark);
 }
 
-function runOver(win) {
+// turn the recorded losing event into a one-line "why you lost"
+function deathCause(d) {
+  if (!d) return null;
+  const when = d.atMatchPoint ? ' at match point' : '';
+  if (d.killer) {
+    return `${d.killer} shoved you into the ${d.side} fire${when}.`;
+  }
+  if (d.lava) {
+    if (d.atMatchPoint) return 'You stepped onto the rim with the match already in your grasp.';
+    if (d.roundsLeft > 0) return `You stepped onto the rim with ${d.roundsLeft} ${d.roundsLeft === 1 ? 'round' : 'rounds'} in hand.`;
+    return `You stepped onto the ${d.side} rim and the lava took you.`;
+  }
+  return null;
+}
+
+function runOver(win, winBark) {
   setPulse(false);
   let cinders = 0;
   if (win) {
@@ -417,12 +453,21 @@ function runOver(win) {
   }
   if (run.risk) cinders = Math.ceil((cinders + run.matchesWon * 2) * 1.5) - run.matchesWon * 2; // risk bonus on the whole haul
   Meta.cinders += cinders;
+  // credit the rival who ended the run, then surface their escalating bark
+  let bark = null;
+  if (!win) {
+    const ender = GAUNTLET[run.matchIdx].rivals[0];
+    Meta.lossesTo[ender] = (Meta.lossesTo[ender] || 0) + 1;
+    bark = barkFor(ender, 'loss', Meta.lossesTo[ender]);
+  }
   saveMeta();
   if (win) sfx.gauntletClear(); else sfx.runOver();
   const stats = {
     matchIdx: run.matchIdx, matchesWon: run.matchesWon, shoves: run.shoves,
     cinders: cinders + run.matchesWon * 2, risk: run.risk,
     newTier: win && run.tier === Meta.tier - 1 ? Meta.tier : 0,
+    cause: !win ? deathCause(run.lastDeath) : null,
+    bark: win ? winBark : bark,
   };
   renderRunEnd(win, stats, () => { run = null; gotoMenu(); });
 }
