@@ -194,7 +194,7 @@ export const RIVALS = {
 // `firstWin` shows on the death screen of OTHER runs once you've beaten them.
 // Pure data — read by barkFor() against Meta.lossesTo / Meta.winsOver counters.
 export const RIVAL_BARKS = {
-  pyra:   { loss: ['Pyra grins. “Back already? You learn slow.”', 'Pyra circles. “Third time. I could do this in my sleep.”'],
+  pyra:   { loss: ['Pyra grins. “Back already? You learn slow.”', 'Pyra circles. “Still nothing new. I could do this in my sleep.”'],
             firstWin: 'Pyra spits embers. “Lucky. It won’t hold.”' },
   cinder: { loss: ['Old Cinder doesn’t look up. “The centre is mine. Still.”', 'Old Cinder sighs. “You keep walking into the same fire.”'],
             firstWin: 'Old Cinder nods, slow. “Patience. You found some at last.”' },
