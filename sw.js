@@ -1,11 +1,11 @@
 // Emberlock service worker — cache-first for own assets, runtime cache for fonts.
-const CACHE = 'emberlock-v9';
+const CACHE = 'emberlock-v15';
 const ASSETS = [
   '.',
   'index.html',
   'manifest.json',
-  'css/main.css?v=7',
-  'js/main.js?v=9',
+  'css/main.css?v=10',
+  'js/main.js?v=14',
   'js/audio.js',
   'js/engine/vec.js',
   'js/engine/loop.js',

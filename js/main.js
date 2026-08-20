@@ -6,13 +6,13 @@ import { TwinStick } from './engine/input.js';
 import { GameLoop } from './engine/loop.js';
 import { FX, updateFX, clearFX, floatText, burst } from './engine/fx.js';
 import { initAudio, resumeAudio, sfx, setSfx, startMusic, stopMusic, setPulse, setMusicIntensity, setMusicKey } from './audio.js';
-import { C, SPELLS, UPGRADES, RELICS, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR, barkFor } from './game/data.js';
+import { C, SPELLS, UPGRADES, RELICS, EMBERS, RIVALS, GAUNTLET, TRIALS, PLAYER_COLOR, barkFor, stanceReward, stanceById } from './game/data.js';
 import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
 import { Renderer } from './game/render.js';
 import {
   $, showScreen, toast, renderMenu, renderEmberPick, renderDraft, renderShop,
-  renderMatchEnd, renderRunEnd, renderSanctum, renderHelp, renderTrials, renderTrialEnd,
+  renderMatchEnd, renderRunEnd, renderSanctum, renderHelp, renderTrials, renderTrialPrep, renderTrialEnd,
   buildSpellButtons, updateSpellButtons,
 } from './game/ui.js';
 
@@ -36,6 +36,7 @@ document.addEventListener('pointerdown', () => { initAudio(); resumeAudio(); }, 
 let run = null;   // { tier, matchIdx, gold, embers, risk, owned, matchesWon, shoves }
 let trial = null; // active TRIALS entry (trial mode and gauntlet mode are exclusive)
 let trialWins = null; // { player, rival } round tallies during a trial
+let trialStance = null; // STANCES entry chosen on the prepare screen
 let world = null;
 let musicOn = false;
 
@@ -153,6 +154,7 @@ function grantItem(it) {
 function gotoMenu() {
   world = null;
   trial = null;
+  trialStance = null;
   setPulse(false);
   setMusicKey(1);
   renderMenu({
@@ -167,19 +169,65 @@ function gotoMenu() {
 function gotoTrials() {
   world = null;
   trial = null;
-  renderTrials({ start: startTrial, back: gotoMenu });
+  renderTrials({ start: gotoTrialPrep, back: gotoMenu });
 }
 
 // ---- trials: one crafted match, fixed rules, reward pays once ----------------------
-function trialPlayerCfg(t) {
+// The trial's own grants plus whatever boons the stance let the player pick.
+function trialLoadout(t, boons = []) {
   const ranks = { force: 0, quick: 0, great: 0, brand: 0, ...(t.ranks || {}) };
-  const actives = t.actives || [];
+  const actives = [...(t.actives || [])];
+  let utility = t.utility || null;
+  for (const b of boons) {
+    if (b.kind === 'upgrade') ranks[b.track]++;
+    else if (b.kind === 'active') actives.push(b.id);
+    else if (b.kind === 'utility') utility = b.id;
+  }
+  return { ranks, actives, utility };
+}
+
+// What a lower stance may hand you: an unspent fireball rank, a free spell slot,
+// a trinket the trial left empty. Never rolled — the player answers the fight.
+function trialBoonPool(t) {
+  const lo = trialLoadout(t);
+  const items = [];
+  for (const u of Object.values(UPGRADES)) {
+    const at = lo.ranks[u.id];
+    if (at >= u.costs.length) continue;
+    items.push({ kind: 'upgrade', track: u.id, id: `up_${u.id}`, icon: u.icon, name: u.name,
+      sub: `RANK ${at} → ${at + 1}`, desc: u.desc });
+  }
+  const slots = 2 - lo.actives.length;
+  for (const sp of Object.values(SPELLS)) {
+    if (sp.locked && !Meta.unlockedSpells.includes(sp.id)) continue;
+    if (sp.kind === 'active') {
+      if (slots <= 0 || lo.actives.includes(sp.id)) continue;
+      const cut = Math.round(C.OFFENSE_PENALTY * (sp.offensive ? 1 : (sp.offenseWeight || 0)) * 100);
+      items.push({ kind: 'active', id: sp.id, icon: sp.icon, name: sp.name, desc: sp.desc,
+        sub: cut ? `−${cut}% base shove` : undefined, activeSlots: slots });
+    } else if (sp.kind === 'utility' && !lo.utility) {
+      items.push({ kind: 'utility', id: sp.id, icon: sp.icon, name: sp.name, desc: sp.desc });
+    }
+  }
+  return items;
+}
+
+function gotoTrialPrep(t) {
+  world = null;
+  trial = null;
+  setPulse(false);
+  renderTrialPrep(t, trialBoonPool(t), { start: startTrial, back: gotoTrials });
+}
+
+function trialPlayerCfg(t, lo) {
+  const ranks = lo.ranks;
+  const actives = lo.actives;
   const offensive = actives.reduce((n, s) => n + (SPELLS[s].offensive ? 1 : (SPELLS[s].offenseWeight || 0)), 0);
   return {
     relics: relicFlags(t.relics),
     color: Meta.robe || PLAYER_COLOR,
-    hpMax: C.HP + (t.utility === 'heart' ? 30 : 0),
-    speed: C.SPEED * (t.utility === 'boots' ? 1.12 : 1),
+    hpMax: C.HP + (lo.utility === 'heart' ? 30 : 0),
+    speed: C.SPEED * (lo.utility === 'boots' ? 1.12 : 1),
     fbImpulse: C.FB_IMPULSE * (1 + 0.15 * ranks.force) * (1 - C.OFFENSE_PENALTY * offensive) * (t.impulseMul || 1),
     fbCd: C.FB_CD * Math.pow(0.85, ranks.quick),
     fbRadius: C.FB_RADIUS * (1 + 0.25 * ranks.great),
@@ -187,31 +235,33 @@ function trialPlayerCfg(t) {
     fbSpeed: C.FB_SPEED * (ranks.quick >= UPGRADES.quick.costs.length ? 1.22 : 1),
     forceCap: ranks.force >= UPGRADES.force.costs.length,
     greatCap: ranks.great >= UPGRADES.great.costs.length,
-    heavy: t.utility === 'heart',
+    heavy: lo.utility === 'heart',
     brandRank: ranks.brand || 0,
-    kbResist: t.utility === 'lodestone' ? 0.22 : 0,
+    kbResist: lo.utility === 'lodestone' ? 0.22 : 0,
     actives,
-    wardMax: t.utility === 'ward' ? 1 : 0,
+    wardMax: lo.utility === 'ward' ? 1 : 0,
   };
 }
 
-function startTrial(t) {
+function startTrial(t, stance, boons) {
   run = null;
   trial = t;
+  trialStance = stance;
   trialWins = { player: 0, rival: 0 };
+  const lo = trialLoadout(t, boons);
   world = new World({
     lineup: t.lineup,
     aiTier: t.aiTier,
     ascension: 0,
     embers: t.embers || [],
     matchIdx: 0,
-    player: trialPlayerCfg(t),
+    player: trialPlayerCfg(t, lo),
     arena: t.arena,
     neutralMines: t.mines,
     theme: t.theme,
   }, onWorldEvent);
   setMusicKey(world.theme.musicShift);
-  buildSpellButtons(t.actives || [], castActive);
+  buildSpellButtons(lo.actives, castActive);
   showScreen(null);
   clearFX();
   if (Meta.music && !musicOn) { startMusic(); musicOn = true; }
@@ -222,16 +272,28 @@ function startTrial(t) {
 function endTrial(win) {
   setPulse(false);
   const t = trial;
-  const firstClear = win && !Meta.trialsDone.includes(t.id);
-  if (firstClear) {
-    Meta.trialsDone.push(t.id);
-    Meta.cinders += t.reward;
-    if (t.robe && !Meta.robes.includes(t.robe)) Meta.robes.push(t.robe);
+  const st = trialStance;
+  const res = { stance: st, paid: 0, left: 0 };
+  if (win) {
+    // cinders pay ONCE per trial, up to the stance's share — a later, better
+    // clear tops the purse up to the difference instead of paying twice.
+    const paidSoFar = Meta.trialPaid[t.id] || 0;
+    const pay = Math.max(0, stanceReward(t.reward, st) - paidSoFar);
+    if (pay > 0) { Meta.trialPaid[t.id] = paidSoFar + pay; Meta.cinders += pay; }
+    res.paid = pay;
+    if (st.id === 'pure') {
+      if (!Meta.trialsDone.includes(t.id)) Meta.trialsDone.push(t.id);
+      Meta.trialsAided = Meta.trialsAided.filter((id) => id !== t.id); // ✦ supersedes ◆
+      if (t.robe && !Meta.robes.includes(t.robe)) Meta.robes.push(t.robe);
+    } else if (!Meta.trialsDone.includes(t.id) && !Meta.trialsAided.includes(t.id)) {
+      Meta.trialsAided.push(t.id);
+    }
+    res.left = Math.max(0, t.reward - (Meta.trialPaid[t.id] || 0));
     saveMeta();
   }
   if (win) sfx.matchWin(); else sfx.runOver();
-  renderTrialEnd(win, t, firstClear, {
-    retry: () => startTrial(t),
+  renderTrialEnd(win, t, res, {
+    retry: () => gotoTrialPrep(t),   // a loss sends you back to the stance board
     back: gotoTrials,
   });
 }
@@ -568,6 +630,9 @@ window.__game = {
     startMatch();
   },
   winRound() { if (world) world.wizards.forEach((w) => { if (!w.isPlayer) { w.hp = 0; w.alive && world._die(w, true); } }); },
-  startTrial(i = 0) { startTrial(TRIALS[Math.min(i, TRIALS.length - 1)]); },
+  startTrial(i = 0, stanceId = 'pure', boons = []) {
+    startTrial(TRIALS[Math.min(i, TRIALS.length - 1)], stanceById(stanceId), boons);
+  },
+  prepTrial(i = 0) { gotoTrialPrep(TRIALS[Math.min(i, TRIALS.length - 1)]); },
   openTrials() { gotoTrials(); },
 };

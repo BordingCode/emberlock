@@ -1,5 +1,5 @@
 // DOM screens & HUD buttons. The canvas is the game; DOM is menus, cards, buttons.
-import { SPELLS, UPGRADES, EMBERS, RIVALS, META_SHOP, TRIALS, TROPHY_ROBE } from './data.js';
+import { SPELLS, UPGRADES, EMBERS, RIVALS, META_SHOP, TRIALS, TROPHY_ROBE, STANCES, stanceById, stanceReward } from './data.js';
 import { Meta, saveMeta } from './meta.js';
 import { sfx } from '../audio.js';
 
@@ -195,27 +195,36 @@ export function renderRunEnd(win, stats, cb) {
 }
 
 // ---- trials: the challenge ladder ------------------------------------------------------------
+// a trial counts as cleared (opens the next rung) on ANY stance — only ✦ needs PURE
+export function trialCleared(id) {
+  return Meta.trialsDone.includes(id) || Meta.trialsAided.includes(id);
+}
+
 export function renderTrials(cb) {
   const s = $('#scr-trials');
   s.innerHTML = '';
   s.append(el('h2', 'h', 'THE TRIALS'));
-  s.append(el('p', 'sub', `Twelve crafted fights, each unlocking the next. <b>${Meta.trialsDone.length}/${TRIALS.length}</b> conquered.`));
+  const aidedCount = TRIALS.filter((t) => !Meta.trialsDone.includes(t.id) && Meta.trialsAided.includes(t.id)).length;
+  s.append(el('p', 'sub', `Twelve crafted fights, each unlocking the next. <b>${Meta.trialsDone.length}/${TRIALS.length}</b> conquered${aidedCount ? ` · <b class="aided-txt">${aidedCount}</b> cleared aided` : ''}.`));
   const backTop = el('button', 'btn btn-small', 'BACK');
   backTop.onclick = () => cb.back();
   s.append(backTop);
   const list = el('div', 'trial-list');
   TRIALS.forEach((t, i) => {
     const done = Meta.trialsDone.includes(t.id);
-    const unlocked = i === 0 || Meta.trialsDone.includes(TRIALS[i - 1].id);
-    const row = el('button', 'trial-row' + (done ? ' done' : unlocked ? ' next' : ' locked'));
+    const aided = !done && Meta.trialsAided.includes(t.id);
+    const prev = TRIALS[i - 1];
+    const unlocked = i === 0 || trialCleared(prev.id);
+    const row = el('button', 'trial-row' + (done ? ' done' : aided ? ' aided' : unlocked ? ' next' : ' locked'));
     const foes = t.lineup.map((r) => `<b style="color:${RIVALS[r].color}">${RIVALS[r].name}</b>`).join(' · ');
+    const left = Math.max(0, t.reward - (Meta.trialPaid[t.id] || 0));
     row.innerHTML = `
-      <div class="trial-num">${done ? '✦' : unlocked ? t.num : '🔒'}</div>
+      <div class="trial-num">${done ? '✦' : aided ? '◆' : unlocked ? t.num : '🔒'}</div>
       <div class="trial-main">
         <div class="trial-name">TRIAL ${t.num} — ${t.name.toUpperCase()}</div>
-        ${unlocked ? `<div class="trial-desc">${t.desc}</div><div class="trial-foes">${foes} · first to ${t.target}</div>` : '<div class="trial-desc">Conquer the previous trial to reveal this one.</div>'}
+        ${unlocked ? `<div class="trial-desc">${t.desc}</div><div class="trial-foes">${foes} · first to ${t.target}</div>` : '<div class="trial-desc">Clear the previous trial to reveal this one.</div>'}
       </div>
-      <div class="trial-reward">${done ? 'WON' : `+${t.reward} ◈`}</div>`;
+      <div class="trial-reward">${done ? 'WON' : aided ? `AIDED${left ? `<br>+${left} ◈ left` : ''}` : `+${left} ◈`}</div>`;
     if (unlocked) row.onclick = () => { sfx.pick(); cb.start(t); };
     list.append(row);
   });
@@ -223,15 +232,123 @@ export function renderTrials(cb) {
   showScreen('scr-trials');
 }
 
-export function renderTrialEnd(win, trial, firstClear, cb) {
+// ---- trial prepare: pick your stance, then your boons -----------------------
+// The stance is the difficulty dial: fewer cinders for more help, and only PURE
+// earns the ✦. Boons are chosen, never rolled — these fights are crafted, so the
+// player should get to answer them deliberately.
+export function renderTrialPrep(t, pool, cb) {
+  const s = $('#scr-prep');
+  s.innerHTML = '';
+  s.append(el('h2', 'h', `TRIAL ${t.num} — ${t.name.toUpperCase()}`));
+  const foes = t.lineup.map((r) => `<b style="color:${RIVALS[r].color}">${RIVALS[r].name}</b>`).join(' · ');
+  s.append(el('p', 'sub', `${t.desc}<br>${foes} · first to ${t.target}`));
+
+  const given = [
+    ...Object.entries(t.ranks || {}).map(([k, n]) => `${UPGRADES[k].icon} ${UPGRADES[k].name} ${n}`),
+    ...(t.actives || []).map((id) => `${SPELLS[id].icon} ${SPELLS[id].name}`),
+    ...(t.utility ? [`${SPELLS[t.utility].icon} ${SPELLS[t.utility].name}`] : []),
+  ];
+  s.append(el('p', 'trial-foes', given.length ? `The trial grants you: ${given.join(' · ')}` : 'The trial grants you nothing but the bare fireball.'));
+
+  let stance = stanceById(Meta.lastStance);
+  const chosen = [];
+  const left = Math.max(0, t.reward - (Meta.trialPaid[t.id] || 0));
+
+  s.append(el('h3', 'h3', 'CHOOSE YOUR STANCE'));
+  const stanceList = el('div', 'stance-list');
+  const boonWrap = el('div', 'boon-wrap');
+  const count = el('p', 'boon-count', '');
+  const go = el('button', 'btn btn-primary', 'ENTER THE TRIAL');
+
+  const refresh = () => {
+    stanceList.querySelectorAll('.stance-row').forEach((r) => r.classList.toggle('sel', r.dataset.stance === stance.id));
+    boonWrap.innerHTML = '';
+    if (stance.boons > 0) {
+      const head = el('h3', 'h3', `TAKE ${stance.boons === 1 ? 'ONE BOON' : `${stance.boons} BOONS`}`);
+      boonWrap.append(head);
+      const grid = el('div', 'card-grid');
+      pool.forEach((item) => {
+        const taken = chosen.includes(item);
+        const blocked = !taken && (
+          chosen.length >= stance.boons ||
+          (item.kind === 'active' && chosen.filter((c) => c.kind === 'active').length >= item.activeSlots) ||
+          (item.kind === 'utility' && chosen.some((c) => c.kind === 'utility'))
+        );
+        const c = card({ ...item, disabled: blocked, sub: taken ? '✓ TAKEN' : item.sub }, () => {
+          const i = chosen.indexOf(item);
+          if (i >= 0) chosen.splice(i, 1); else chosen.push(item);
+          sfx.pick();
+          refresh();
+        });
+        if (taken) c.classList.add('sel');
+        grid.append(c);
+      });
+      boonWrap.append(grid);
+    }
+    count.textContent = stance.boons
+      ? `${chosen.length} of ${stance.boons} ${stance.boons === 1 ? 'boon' : 'boons'} chosen`
+      : 'no boons — the trial as written';
+    const reward = stanceReward(t.reward, stance);
+    const pay = Math.min(left, reward);
+    go.classList.toggle('disabled', chosen.length !== stance.boons);
+    go.innerHTML = `ENTER THE TRIAL <small>${pay ? `+${pay} ◈` : 'no cinders left'} · ${stance.mark}</small>`;
+  };
+
+  STANCES.forEach((st) => {
+    const row = el('button', 'stance-row');
+    row.dataset.stance = st.id;
+    row.innerHTML = `
+      <div class="stance-mark">${st.mark}</div>
+      <div class="trial-main">
+        <div class="trial-name">${st.name}${st.id === 'pure' ? ' — the true clear' : ''}</div>
+        <div class="trial-desc">${st.desc}</div>
+      </div>
+      <div class="trial-reward">${Math.min(left, stanceReward(t.reward, st)) || 0} ◈</div>`;
+    row.onclick = () => {
+      if (stance.id === st.id) return;
+      stance = st;
+      chosen.length = 0;
+      sfx.pick();
+      refresh();
+    };
+    stanceList.append(row);
+  });
+  s.append(stanceList, boonWrap);
+
+  go.onclick = () => {
+    if (chosen.length !== stance.boons) return;
+    Meta.lastStance = stance.id;
+    saveMeta();
+    sfx.emberSeal();
+    cb.start(t, stance, chosen);
+  };
+  const back = el('button', 'btn btn-small', 'BACK');
+  back.onclick = () => cb.back();
+  const row = el('div', 'menu-row');
+  row.append(go, back);
+  const foot = el('div', 'prep-foot');   // pinned: the grid is long on a phone
+  foot.append(count, row);
+  s.append(foot);
+  refresh();
+  showScreen('scr-prep');
+}
+
+export function renderTrialEnd(win, trial, res, cb) {
   const s = $('#scr-runend');
   s.innerHTML = '';
-  s.append(el('h2', 'h ' + (win ? 'win' : 'lose'), win ? 'TRIAL CONQUERED' : 'THE TRIAL STANDS'));
+  const pure = res.stance.id === 'pure';
+  s.append(el('h2', 'h ' + (win ? 'win' : 'lose'),
+    win ? (pure ? 'TRIAL CONQUERED' : 'TRIAL CLEARED — AIDED') : 'THE TRIAL STANDS'));
   s.append(el('p', 'sub', win
-    ? (firstClear
-      ? `Trial ${trial.num} — ${trial.name} — falls. <b>+${trial.reward} ◈</b> banked${trial.robe ? ', and the white robe of the Emberlocked is yours' : ''}.`
-      : `Trial ${trial.num} conquered again. The ladder remembers the first time.`)
+    ? (res.paid
+      ? `Trial ${trial.num} — ${trial.name} — falls${pure ? '' : ` on ${res.stance.name.toLowerCase()} footing`}. <b>+${res.paid} ◈</b> banked${trial.robe && pure ? ', and the white robe of the Emberlocked is yours' : ''}.`
+      : `Trial ${trial.num} falls again. Its cinders are already spent.`)
     : `Trial ${trial.num} — ${trial.name} — holds its ground. It will be here when you return.`));
+  if (win && !pure) {
+    s.append(el('p', 'lose-note', trial.robe
+      ? `Marked ◆ AIDED. The white robe — and the ✦ — wait for a PURE clear${res.left ? `, worth ${res.left} ◈ more` : ''}.`
+      : `Marked ◆ AIDED. Beat it PURE for the ✦${res.left ? ` and the last ${res.left} ◈` : ''}.`));
+  }
   const row = el('div', 'menu-row');
   if (!win) {
     const retry = el('button', 'btn btn-primary', 'TRY AGAIN');

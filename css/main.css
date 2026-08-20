@@ -277,3 +277,66 @@ h1.title span { color: var(--hot); }
 @media (prefers-reduced-motion: reduce) {
   .btn, .card, .spell-btn { transition: none; }
 }
+
+/* ---------- trial prepare: stance board + boons ---------- */
+.stance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 460px;
+}
+.stance-row {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 13px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 0;
+  opacity: 0.62;
+  transition: opacity 0.14s, border-color 0.14s, box-shadow 0.14s;
+}
+.stance-row:active { transform: scale(0.98); }
+.stance-row.sel {
+  opacity: 1;
+  border-color: rgba(255, 200, 80, 0.75);
+  box-shadow: 0 0 18px rgba(255, 150, 40, 0.28);
+}
+.stance-mark {
+  font-size: 17px;
+  color: var(--dim);
+  min-width: 26px;
+  text-align: center;
+}
+.stance-row.sel .stance-mark { color: var(--gold); text-shadow: 0 0 12px rgba(255, 170, 40, 0.7); }
+.boon-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.boon-count {
+  font-family: 'Cinzel', serif;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+.trial-row.aided { border-color: rgba(255, 200, 80, 0.3); }
+.trial-row.aided .trial-num, .trial-row.aided .trial-reward { color: rgba(255, 210, 74, 0.7); }
+.aided-txt { color: rgba(255, 210, 74, 0.8); }
+/* the boon grid is long on a phone — keep the count + action row within reach */
+.prep-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  padding: 16px 0 calc(6px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(11, 7, 18, 0), rgba(12, 8, 20, 0.97) 26%);
+}

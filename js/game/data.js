@@ -362,6 +362,23 @@ export const TRIALS = [
 ];
 export const TROPHY_ROBE = '#f5f2ff';
 
+// ---- Trial stances: the difficulty dial ------------------------------------
+// A trial's crafted loadout is the PURE fight. Lower stances hand you boons you
+// pick yourself (fireball ranks / a spell / a trinket) — but the cinders shrink
+// and the clear is marked AIDED, not conquered. The ladder still opens either
+// way, so nobody gets hard-stuck; only a pure clear earns the ✦.
+export const STANCES = [
+  { id: 'novice', name: 'NOVICE', boons: 3, mult: 0.4, mark: '◆',
+    desc: 'Take three boons of your choosing. The trial bends.' },
+  { id: 'adept', name: 'ADEPT', boons: 1, mult: 0.7, mark: '◆',
+    desc: 'One boon, no more. Meet it most of the way.' },
+  { id: 'pure', name: 'PURE', boons: 0, mult: 1, mark: '✦',
+    desc: 'The trial exactly as written. Nothing added.' },
+];
+export const stanceById = (id) => STANCES.find((s) => s.id === id) || STANCES[2];
+export const stanceReward = (base, stance) => Math.max(1, Math.round(base * stance.mult));
+
+
 // ---- Meta (Cinders) shop — variety, not power -------------------------------
 export const META_SHOP = [
   { id: 'unlock_hook', name: 'Unlock: Hook', icon: '⌁', cost: 10, type: 'spell', target: 'hook', desc: 'The yank. Adds Hook to shops and drafts.' },
