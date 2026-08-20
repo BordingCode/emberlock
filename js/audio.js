@@ -135,12 +135,21 @@ export const sfx = {
     noise(0.4, { gain: 0.1, type: 'bandpass', freq: 1800, delay: 0.12 });
   },
   gauntletClear() { // the rarest moment in the game — let it ring
-    duck(0.5, 2.2);
-    tone(73.4, 2.6, { type: 'sine', gain: 0.18, attack: 0.05 });
+    // Generalpause: a beat of real silence before the fanfare, so the hold
+    // after has actual contrast instead of just a quieter background.
+    const PAUSE = 0.2;
+    if (ctx && musicGain && musicTarget > 0) {
+      const now = ctx.currentTime;
+      musicGain.gain.cancelScheduledValues(now);
+      musicGain.gain.setTargetAtTime(musicTarget * 0.03, now, 0.02);
+      musicGain.gain.setTargetAtTime(musicTarget * 0.5, now + PAUSE, 0.05);
+      musicGain.gain.setTargetAtTime(musicTarget, now + PAUSE + 2.2, 0.18);
+    }
+    tone(73.4, 2.6, { type: 'sine', gain: 0.18, attack: 0.05, delay: PAUSE });
     [293.66, 440, 587.33, 880, 1174.7, 1760].forEach((f, i) =>
-      tone(f, 0.8, { type: 'triangle', gain: 0.15, delay: i * 0.13 }));
+      tone(f, 0.8, { type: 'triangle', gain: 0.15, delay: PAUSE + i * 0.13 }));
     [587.33, 880, 1174.7].forEach((f, i) =>
-      tone(f, 1.6, { type: 'sine', gain: 0.08, delay: 0.85 + i * 0.05, attack: 0.1 }));
+      tone(f, 1.6, { type: 'sine', gain: 0.08, delay: PAUSE + 0.85 + i * 0.05, attack: 0.1 }));
   },
   dash() { noise(0.16, { gain: 0.18, type: 'bandpass', freq: 2000, q: 2 }); tone(440, 0.15, { type: 'sawtooth', gain: 0.06, slideTo: 980 }); },
   clash() { // two bolts annihilate: a bright spark
