@@ -92,7 +92,7 @@ export const SPELLS = {
 export const UPGRADES = {
   force: { id: 'force', name: 'Force', icon: '✸', costs: [6, 10, 16], desc: '+15% fireball shove per rank.',
     cap: 'MASTERY: shots that strike a wizard on the rim drive 40% harder — finish them.' },
-  quick: { id: 'quick', name: 'Quickcast', icon: '⚡', costs: [7, 12, 18], desc: '−15% fireball cooldown per rank.',
+  quick: { id: 'quick', name: 'Quickcast', icon: '⚡', costs: [7, 12, 18], desc: 'Fireball cooldown ×0.85 per rank (stacks — 39% shorter at rank 3).',
     cap: 'MASTERY: your bolts fly faster — far harder to dodge.' },
   great: { id: 'great', name: 'Greatball', icon: '●', costs: [6, 10, 16], desc: 'Bigger fireball, +4 damage per rank.',
     cap: 'MASTERY: impacts burst — a splash shove catches wizards beside the hit.' },
