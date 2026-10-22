@@ -279,6 +279,11 @@ export class Renderer {
     ctx.quadraticCurveTo(0, 17, 11, 13);
     ctx.bezierCurveTo(14, 4, 12, -10, 0, -14);
     ctx.fill();
+    // dark outline so the figure reads by shape, not only by colour (cyan robe vs. cobalt lava)
+    ctx.strokeStyle = 'rgba(10,6,18,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
     // warm rim-light from the lava on the cloak hem
     ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = 'rgba(255,140,40,0.35)';
@@ -291,6 +296,7 @@ export class Renderer {
     // hood + shadowed face with glowing eyes
     ctx.fillStyle = w.dark;
     ctx.beginPath(); ctx.arc(0, -13, 8, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(10,6,18,0.85)'; ctx.lineWidth = 1.4; ctx.stroke();
     ctx.fillStyle = '#0a0612';
     ctx.beginPath(); ctx.arc(1.5, -12, 5.5, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'lighter';

@@ -192,6 +192,19 @@ h1.title span { color: var(--hot); }
   box-shadow: 0 0 22px rgba(255, 190, 60, 0.35);
 }
 .card.disabled { opacity: 0.38; pointer-events: none; }
+.card.passed { opacity: 0.3; pointer-events: none; }
+/* the one big choice of a run (Ember) fills the screen, unlike routine draft/shop cards */
+.card-major {
+  width: 100%;
+  max-width: 300px;
+  padding: 22px 16px;
+  gap: 8px;
+  border-color: var(--gold);
+  box-shadow: 0 0 26px rgba(255, 150, 40, 0.28);
+}
+.card-major .card-icon { font-size: 48px; }
+.card-major .card-name { font-size: 18px; }
+.card-major .card-desc { font-size: 14px; }
 .card-icon { font-size: 30px; line-height: 1.2; color: var(--ember); text-shadow: 0 0 14px rgba(255, 140, 30, 0.6); }
 .card-name { font-family: 'Cinzel', serif; font-weight: 700; font-size: 13.5px; color: var(--gold); letter-spacing: 0.03em; }
 .card-sub { font-size: 10.5px; color: var(--hot); letter-spacing: 0.05em; text-transform: uppercase; }

@@ -109,6 +109,7 @@ export function renderEmberPick(offers, riskPool, cb) {
       confirm.classList.remove('disabled');
       sfx.pick();
     });
+    c.classList.add('card-major');
     row.append(c);
   });
   s.append(row);
@@ -138,7 +139,18 @@ export function renderDraft(matchIdx, lineup, options, cb, taunt) {
   s.append(el('p', 'taunt', taunt || `“${main.taunt}”`));
   s.append(el('h3', 'h3', 'TAKE ONE GIFT'));
   const row = el('div', 'card-row');
-  options.forEach((item) => row.append(card(item, (it) => { sfx.pick(); cb(it); })));
+  let taken = false;
+  options.forEach((item) => {
+    const c = card(item, (it) => {
+      if (taken) return;
+      taken = true;
+      sfx.pick();
+      // a beat of stillness between choosing and the fight: the pick lights up, the others dim
+      row.querySelectorAll('.card').forEach((x) => x.classList.add(x === c ? 'sel' : 'passed'));
+      setTimeout(() => cb(it), 500);
+    });
+    row.append(c);
+  });
   s.append(row);
   showScreen('scr-draft');
 }
