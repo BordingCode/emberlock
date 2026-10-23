@@ -189,6 +189,13 @@ export function renderRunEnd(win, stats, cb) {
   const s = $('#scr-runend');
   s.innerHTML = '';
   s.append(el('h2', 'h ' + (win ? 'win' : 'lose'), win ? 'THE GAUNTLET FALLS' : 'THE RUN ENDS HERE'));
+  if (!win && stats.photo) {
+    const card = el('figure', 'polaroid');
+    stats.photo.setAttribute('role', 'img');
+    stats.photo.setAttribute('aria-label', 'The moment you fell');
+    card.append(stats.photo, el('figcaption', '', stats.photoCaption || ''));
+    s.append(card);
+  }
   s.append(el('p', 'sub', win
     ? 'Every rival shoved into the fire. The island remembers your name.'
     : `Defeated in match ${stats.matchIdx + 1}. The lava keeps what it takes — no rematch, no mercy.`));

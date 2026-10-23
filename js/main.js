@@ -422,6 +422,7 @@ function onWorldEvent(type, data) {
       sfx.hurt();
       // remember HOW the run is about to end, so the death screen can say why
       if (run) {
+        photoPending = { x: victim.x, y: victim.y };
         run.lastDeath = {
           lava,
           side: victim.y < C.AY ? 'north' : 'south',
@@ -518,6 +519,21 @@ function matchWon() {
   renderMatchEnd(run.matchIdx - 1, lineupFor(run.matchIdx), gotoDraft, bark);
 }
 
+// the moment you went into the fire, kept as a small still — memory only, never saved
+let photoPending = null;
+function snapDeathPhoto(at) {
+  if (!run || !run.lastDeath) return;
+  try {
+    const k = view.scale * view.dpr, W = 260, H = 180;
+    const cw = W / 1.5, ch = H / 1.5; // 173x120 world units around the player (zoomed in)
+    const sx = Math.max(0, Math.min(canvas.width - cw * k, (view.offX + at.x * view.scale) * view.dpr - cw * k / 2));
+    const sy = Math.max(0, Math.min(canvas.height - ch * k, (view.offY + at.y * view.scale) * view.dpr - ch * k / 2));
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    c.getContext('2d').drawImage(canvas, sx, sy, cw * k, ch * k, 0, 0, W, H);
+    run.lastDeath.photo = c;
+  } catch (e) { /* a missing photo must never break the run-end screen */ }
+}
+
 // turn the recorded losing event into a one-line "why you lost"
 function deathCause(d) {
   if (!d) return null;
@@ -558,6 +574,8 @@ function runOver(win, winBark) {
     cinders: cinders + run.matchesWon * 2, risk: run.risk,
     newTier: win && run.tier === Meta.tier - 1 ? Meta.tier : 0,
     cause: !win ? deathCause(run.lastDeath) : null,
+    photo: !win && run.lastDeath ? run.lastDeath.photo || null : null,
+    photoCaption: !win ? `Match ${run.matchIdx + 1} — ${run.lastDeath && run.lastDeath.killer ? run.lastDeath.killer : RIVALS[GAUNTLET[run.matchIdx].rivals[0]].name}` : '',
     bark: win ? winBark : bark,
   };
   renderRunEnd(win, stats, () => { run = null; gotoMenu(); });
@@ -608,6 +626,7 @@ const loop = new GameLoop({
       updateSpellButtons(world);
     }
     renderer.draw(world, hud, 1 / 60);
+    if (photoPending) { snapDeathPhoto(photoPending); photoPending = null; }
   },
 });
 

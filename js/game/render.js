@@ -264,6 +264,15 @@ export class Renderer {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(0, 13, 13, 5, 0, 0, TAU); ctx.fill();
 
+    // "this one is you": a thin white ring at the feet + a small marker over the hat, so it
+    // never depends on robe colour (a bought robe can equal a rival's colour)
+    if (w.isPlayer && w.alive) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(0, 13, 19, 7.5, 0, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.moveTo(-5, -43); ctx.lineTo(5, -43); ctx.lineTo(0, -36); ctx.closePath(); ctx.fill();
+    }
+
     const bobY = Math.sin(w.bob) * 1.5;
     ctx.translate(0, bobY);
     ctx.scale(w.facing, 1);
