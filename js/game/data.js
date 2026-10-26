@@ -289,8 +289,8 @@ export const GAUNTLET = [
 export const AI_TIERS = [
   { aimErr: 0.44, react: 0.60, dodgeMul: 0.45, cdMul: 1.45, killShot: 0.62 },
   { aimErr: 0.32, react: 0.46, dodgeMul: 0.65, cdMul: 1.20, killShot: 0.78 },
-  { aimErr: 0.20, react: 0.30, dodgeMul: 0.90, cdMul: 1.00, killShot: 0.92 },
-  { aimErr: 0.15, react: 0.24, dodgeMul: 1.00, cdMul: 1.00, killShot: 0.92 },
+  { aimErr: 0.26, react: 0.38, dodgeMul: 0.90, cdMul: 1.00, killShot: 0.92 },
+  { aimErr: 0.18, react: 0.27, dodgeMul: 1.00, cdMul: 1.00, killShot: 0.92 },
   { aimErr: 0.11, react: 0.18, dodgeMul: 1.15, cdMul: 1.00, killShot: 0.92 },
 ];
 
