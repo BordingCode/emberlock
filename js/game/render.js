@@ -549,6 +549,7 @@ export class Renderer {
   drawHud(ctx, world, hud, t) {
     const W = this.view.cssW;
     ctx.save();
+    ctx.translate(0, safeTop()); // keep the three numbers clear of the iPhone status bar
     ctx.textAlign = 'center';
     // round pips: you (left) vs the lineup's best (right)
     const cx = W / 2, y = 26;
@@ -583,3 +584,20 @@ export class Renderer {
     ctx.restore();
   }
 }
+
+// Height of the iOS status bar / notch (0 in a normal browser tab). The page draws under it
+// (viewport-fit=cover + black-translucent), so the HUD has to step down by this much.
+let safeTopPx = 0, safeProbe = null;
+function measureSafeTop() {
+  if (!safeProbe) {
+    safeProbe = document.createElement('div');
+    safeProbe.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)';
+    document.body.appendChild(safeProbe);
+  }
+  safeTopPx = safeProbe.offsetHeight;
+}
+function safeTop() { return safeTopPx; }
+window.addEventListener('resize', measureSafeTop);
+window.addEventListener('orientationchange', measureSafeTop);
+window.addEventListener('DOMContentLoaded', measureSafeTop);
+if (document.body) measureSafeTop();

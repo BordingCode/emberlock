@@ -429,6 +429,7 @@ function onWorldEvent(type, data) {
           killer: killer && !killer.isPlayer ? killer.name : null,
           roundsLeft: Math.max(0, C.ROUND_TARGET - run.rivalWins - 1),
           atMatchPoint: run.rivalWins >= C.ROUND_TARGET - 1,
+          playerAtMatchPoint: run.playerWins >= C.ROUND_TARGET - 1,
         };
       }
     }
@@ -542,7 +543,8 @@ function deathCause(d) {
     return `${d.killer} shoved you into the ${d.side} fire${when}.`;
   }
   if (d.lava) {
-    if (d.atMatchPoint) return 'You stepped onto the rim with the match already in your grasp.';
+    if (d.atMatchPoint) return 'You stepped onto the rim, and the rival already had the match in hand.';
+    if (d.playerAtMatchPoint) return 'You stepped onto the rim with the match in your grasp.';
     if (d.roundsLeft > 0) return `You stepped onto the rim with ${d.roundsLeft} ${d.roundsLeft === 1 ? 'round' : 'rounds'} in hand.`;
     return `You stepped onto the ${d.side} rim and the lava took you.`;
   }

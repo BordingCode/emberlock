@@ -385,10 +385,10 @@ export const META_SHOP = [
   { id: 'unlock_ward', name: 'Unlock: Ward', icon: '◍', cost: 8, type: 'spell', target: 'ward', desc: 'The bubble. Adds Ward to shops and drafts.' },
   { id: 'unlock_rivers', name: 'Ember: Rivers of Fire', icon: '〰', cost: 10, type: 'ember', target: 'rivers', desc: 'A new run modifier in the draw.' },
   { id: 'unlock_twins', name: 'Ember: Twin Suns', icon: '◎', cost: 12, type: 'ember', target: 'twins', desc: 'A new run modifier in the draw.' },
-  { id: 'robe_magenta', name: 'Robe: Wildfire', icon: '🜲', cost: 4, type: 'robe', target: '#ff3d9e', desc: 'A new robe for your wizard.' },
-  { id: 'robe_gold', name: 'Robe: Gilded', icon: '🜲', cost: 4, type: 'robe', target: '#ffd24a', desc: 'A new robe for your wizard.' },
-  { id: 'robe_verdant', name: 'Robe: Verdant', icon: '🜲', cost: 4, type: 'robe', target: '#b6ff3d', desc: 'A new robe for your wizard.' },
-  { id: 'robe_void', name: 'Robe: Voidtouched', icon: '🜲', cost: 6, type: 'robe', target: '#c63dff', desc: 'A new robe for your wizard.' },
+  { id: 'robe_magenta', name: 'Robe: Wildfire', icon: '🜲', cost: 4, type: 'robe', target: '#ff3d9e', desc: 'Hot pink, loud on purpose.' },
+  { id: 'robe_gold', name: 'Robe: Gilded', icon: '🜲', cost: 4, type: 'robe', target: '#ffd24a', desc: 'Dressed like the gold you collect.' },
+  { id: 'robe_verdant', name: 'Robe: Verdant', icon: '🜲', cost: 4, type: 'robe', target: '#b6ff3d', desc: 'Acid green. Lava has never looked so jealous.' },
+  { id: 'robe_void', name: 'Robe: Voidtouched', icon: '🜲', cost: 6, type: 'robe', target: '#c63dff', desc: 'Purple from somewhere past the lava.' },
 ];
 
 export const PLAYER_COLOR = '#3df0ff'; // default robe (cyan); robes override

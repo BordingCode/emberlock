@@ -79,9 +79,19 @@ export function renderMenu(cb) {
 }
 
 // ---- card helper ----------------------------------------------------------------
+// the little wizard from the arena, drawn in the robe's colour (robe cards only)
+function robeIcon(color) {
+  return `<svg viewBox="0 0 40 52" width="34" height="44" aria-hidden="true" style="display:block;margin:0 auto">
+    <path d="M8 50 L13 24 Q20 28 27 24 L32 50 Z" fill="${color}"/>
+    <circle cx="20" cy="19" r="7" fill="#0a0612" stroke="${color}" stroke-width="1.5"/>
+    <circle cx="17.5" cy="19" r="1.4" fill="${color}"/><circle cx="22.5" cy="19" r="1.4" fill="${color}"/>
+    <path d="M10 15 Q20 11 30 15 Q27 12 23 10 Q25 3 19 1 Q19 8 16 10 Q12 12 10 15 Z" fill="${color}"/>
+  </svg>`;
+}
+
 function card(item, onPick) {
   const c = el('button', 'card' + (item.disabled ? ' disabled' : ''));
-  c.append(el('div', 'card-icon', item.icon));
+  c.append(el('div', 'card-icon', item.type === 'robe' || item.robeColor ? robeIcon(item.robeColor || item.target) : item.icon));
   c.append(el('div', 'card-name', item.name));
   if (item.sub) c.append(el('div', 'card-sub', item.sub));
   c.append(el('div', 'card-desc', item.desc));
@@ -416,13 +426,13 @@ export function renderSanctum(cb) {
     }));
   });
   // default robe re-equip
-  const def = card({ icon: '🜲', name: 'Robe: Tidecaller', desc: 'The first robe. Cyan as cold water.', cost: 0, curr: '◈', owned: true, sub: Meta.robe === '#3df0ff' ? 'WORN' : undefined }, () => {
+  const def = card({ robeColor: '#3df0ff', icon: '🜲', name: 'Robe: Tidecaller', desc: 'The first robe. Cyan as cold water.', cost: 0, curr: '◈', owned: true, sub: Meta.robe === '#3df0ff' ? 'WORN' : undefined }, () => {
     Meta.robe = '#3df0ff'; saveMeta(); sfx.pick(); renderSanctum(cb);
   });
   row.append(def);
   // trophy robe: only exists if Trial XII has been conquered
   if (Meta.robes.includes(TROPHY_ROBE)) {
-    const trophy = card({ icon: '☄', name: 'Robe: Emberlocked', desc: 'White-hot. Won, never bought — proof of Trial XII.', cost: 0, curr: '◈', owned: true, sub: Meta.robe === TROPHY_ROBE ? 'WORN' : 'TROPHY' }, () => {
+    const trophy = card({ robeColor: TROPHY_ROBE, icon: '☄', name: 'Robe: Emberlocked', desc: 'White-hot. Won, never bought — proof of Trial XII.', cost: 0, curr: '◈', owned: true, sub: Meta.robe === TROPHY_ROBE ? 'WORN' : 'TROPHY' }, () => {
       Meta.robe = TROPHY_ROBE; saveMeta(); sfx.pick(); renderSanctum(cb);
     });
     row.append(trophy);

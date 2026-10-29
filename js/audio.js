@@ -224,3 +224,22 @@ export function stopMusic() {
   musicTarget = 0;
   if (musicGain && ctx) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.6);
 }
+
+// Pause everything audible while the page is hidden (tab switch, app switch) and pick it back up after
+let hiddenRestore = null;
+document.addEventListener('visibilitychange', () => {
+  if (!ctx) return;
+  if (document.hidden) {
+    if (hiddenRestore) return;
+    hiddenRestore = { music: !!musicTimer, pulse: !!pulseTimer };
+    if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+    if (pulseTimer) { clearTimeout(pulseTimer); pulseTimer = null; }
+    ctx.suspend();
+  } else if (hiddenRestore) {
+    const r = hiddenRestore;
+    hiddenRestore = null;
+    ctx.resume();
+    if (r.music) startMusic();
+    if (r.pulse) setPulse(true);
+  }
+});
