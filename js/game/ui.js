@@ -26,6 +26,11 @@ export function toast(text, dur = 2.8) {
   toastTimer = setTimeout(() => t.classList.remove('show'), dur * 1000);
 }
 
+export function hideToast() {
+  clearTimeout(toastTimer);
+  $('#toast').classList.remove('show');
+}
+
 // ---- main menu ---------------------------------------------------------------
 export function renderMenu(cb) {
   const s = $('#scr-menu');

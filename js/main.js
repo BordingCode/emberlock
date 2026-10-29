@@ -11,7 +11,7 @@ import { Meta, loadMeta, saveMeta } from './game/meta.js';
 import { World } from './game/world.js';
 import { Renderer } from './game/render.js';
 import {
-  $, showScreen, toast, renderMenu, renderEmberPick, renderDraft, renderShop,
+  $, showScreen, toast, hideToast, renderMenu, renderEmberPick, renderDraft, renderShop,
   renderMatchEnd, renderRunEnd, renderSanctum, renderHelp, renderTrials, renderTrialPrep, renderTrialEnd,
   buildSpellButtons, updateSpellButtons,
 } from './game/ui.js';
@@ -365,16 +365,41 @@ function startMatch() {
   clearFX();
   world.startRound();
   sfx.countTick();
-  if (!Meta.coached) {
-    Meta.coached = true; saveMeta();
-    setTimeout(() => toast('LEFT THUMB — DRAG TO MOVE'), 400);
-    setTimeout(() => toast('RIGHT THUMB — DRAG TO AIM, RELEASE TO FIRE'), 3400);
-    setTimeout(() => toast('SHOVE THEM INTO THE LAVA'), 6600);
+  coachStep = Meta.coached ? 3 : 0;
+  coachShown = -1;
+}
+
+// first-run coaching follows what the player does, not a clock: each tip waits until
+// the previous one has been acted on (move -> fire -> land a hit)
+const COACH_TIPS = [
+  'LEFT THUMB — DRAG TO MOVE',
+  'RIGHT THUMB — DRAG TO AIM, RELEASE TO FIRE',
+  'SHOVE THEM INTO THE LAVA',
+];
+let coachStep = 3;
+let coachShown = -1;
+let coachFired = false;
+
+function updateCoach() {
+  if (coachStep >= 3) return;
+  if (!world || world.state !== 'fight') {
+    if (coachShown >= 0 && world && world.state !== 'count') { hideToast(); coachShown = -1; }
+    return;
   }
+  if (coachStep === 0 && input.joystick().mag > 0.1) coachStep = 1;
+  if (coachStep === 1 && coachFired) coachStep = 2;
+  if (coachStep === 2 && world.wizards.some((w) => !w.isPlayer && w.hitFlash > 0)) coachStep = 3;
+  if (coachStep >= 3) {
+    Meta.coached = true; saveMeta();
+    hideToast(); coachShown = -1;
+    return;
+  }
+  if (coachShown !== coachStep) { toast(COACH_TIPS[coachStep], 120); coachShown = coachStep; }
 }
 
 // track the first few fireballs thrown — the on-screen control hints stay up until then
 function countFire() {
+  coachFired = true;
   Meta.fireCount = (Meta.fireCount || 0) + 1;
   if (Meta.fireCount <= 8) saveMeta();
 }
@@ -605,6 +630,7 @@ const loop = new GameLoop({
       sfx.fizzle();
     }
     world.update(dt, { joy: input.joystick() });
+    updateCoach();
     setPulse(world.state === 'fight' && world.arenaR < 130 && Meta.music);
     if (world.state === 'fight') setMusicIntensity(1 - (world.arenaR - C.R_FLOOR) / (C.R_START - C.R_FLOOR));
   },
